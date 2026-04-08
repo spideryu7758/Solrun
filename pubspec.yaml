@@ -66,6 +66,10 @@ dependencies:
   flutter_secure_storage: ^9.2.4
   uuid: ^4.5.1
 
+  # 外部链接（更新下载）
+  url_launcher: ^6.3.1
+  package_info_plus: ^8.3.0
+
   # 图标
   cupertino_icons: ^1.0.8
   characters: ^1.4.1

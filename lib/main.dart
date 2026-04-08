@@ -12,6 +12,7 @@ import 'data/providers.dart';
 import 'features/tracking/data/checkpoint_service.dart';
 import 'features/tracking/data/foreground_task_service.dart';
 import 'l10n/app_localizations.dart';
+import 'shared/services/update_checker.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -57,6 +58,14 @@ class _SolrunAppState extends ConsumerState<SolrunApp> {
     } catch (e) {
       debugPrint('[Solrun] 崩溃恢复检查失败，跳过: $e');
     }
+
+    // 延迟 2 秒后静默检查更新（不阻塞启动）
+    Future.delayed(const Duration(seconds: 2), () {
+      final ctx = router.routerDelegate.navigatorKey.currentContext;
+      if (ctx != null && mounted) {
+        UpdateChecker.check(ctx);
+      }
+    });
   }
 
   /// 启动时检测是否有未完成的检查点

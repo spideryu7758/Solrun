@@ -1203,4 +1203,13 @@ class SEn extends S {
 
   @override
   String get share_audienceQuote => 'Audience Quote';
+
+  @override
+  String get updateAvailableTitle => 'Update Available';
+
+  @override
+  String get updateNow => 'Update Now';
+
+  @override
+  String get updateLater => 'Later';
 }

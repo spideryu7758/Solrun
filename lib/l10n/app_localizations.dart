@@ -2190,6 +2190,24 @@ abstract class S {
   /// In zh, this message translates to:
   /// **'观众语录'**
   String get share_audienceQuote;
+
+  /// No description provided for @updateAvailableTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'发现新版本'**
+  String get updateAvailableTitle;
+
+  /// No description provided for @updateNow.
+  ///
+  /// In zh, this message translates to:
+  /// **'立即更新'**
+  String get updateNow;
+
+  /// No description provided for @updateLater.
+  ///
+  /// In zh, this message translates to:
+  /// **'稍后'**
+  String get updateLater;
 }
 
 class _SDelegate extends LocalizationsDelegate<S> {

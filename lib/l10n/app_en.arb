@@ -385,5 +385,9 @@
   "@share_optionNotSupported": { "placeholders": { "label": { "type": "String" }, "template": { "type": "String" } } },
   "share_unsupportedTemplate": "{template} style not supported",
   "@share_unsupportedTemplate": { "placeholders": { "template": { "type": "String" } } },
-  "share_audienceQuote": "Audience Quote"
+  "share_audienceQuote": "Audience Quote",
+
+  "updateAvailableTitle": "Update Available",
+  "updateNow": "Update Now",
+  "updateLater": "Later"
 }

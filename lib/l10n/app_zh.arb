@@ -422,5 +422,9 @@
   "@share_optionNotSupported": { "placeholders": { "label": { "type": "String" }, "template": { "type": "String" } } },
   "share_unsupportedTemplate": "不支持{template}风格",
   "@share_unsupportedTemplate": { "placeholders": { "template": { "type": "String" } } },
-  "share_audienceQuote": "观众语录"
+  "share_audienceQuote": "观众语录",
+
+  "updateAvailableTitle": "发现新版本",
+  "updateNow": "立即更新",
+  "updateLater": "稍后"
 }

@@ -1183,4 +1183,13 @@ class SZh extends S {
 
   @override
   String get share_audienceQuote => '观众语录';
+
+  @override
+  String get updateAvailableTitle => '发现新版本';
+
+  @override
+  String get updateNow => '立即更新';
+
+  @override
+  String get updateLater => '稍后';
 }
