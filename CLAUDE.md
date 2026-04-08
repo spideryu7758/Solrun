@@ -194,6 +194,7 @@ lib/
 │       ├── tts_service.dart           # 语音播报（中英自动切换 + awaitSpeakCompletion + announcePause + _currentLang/setLanguageTag）
 │       ├── weather_service.dart       # 实时天气服务（Open-Meteo 免费 API，GPS 定位获取）
 │       ├── geocoding_service.dart     # 城市识别（高德优先 → Nominatim IPv4 兜底，10 分钟缓存，从 tracking/data/ 迁入共享层）
+│       ├── update_checker.dart        # App 更新检测（自建服务器 version.json 对比 + 弹窗下载）
 │       ├── tile_cache_service.dart    # 瓦片文件缓存（LRU 200MB + 离线回退 + 并发预缓存每批 6 个）
 │       ├── map_preferences.dart       # 地图偏好设置（瓦片源选择 + 自定义 URL）
 │       └── llm/                       # 通用 LLM Provider 层
@@ -280,6 +281,7 @@ lib/
 - **API Key 安全：** flutter_secure_storage 按厂商独立加密存储（ai_api_key_{preset}），切换厂商不互相覆盖
 - **AI 会话管理：** 按 conversationId 分组存储，支持会话列表浏览、切换、左滑单条删除、批量清空，显示存储空间占用
 - **AI 功能离线降级：** 未配置或无网络时，AI 入口显示友好提示，核心跑步功能完全不受影响
+- **App 更新检测：** 启动后 2 秒静默请求 `solrun.greatwaycloud.com:8080/version.json`，对比本地版本号，有新版本弹窗提示下载 APK；支持 force 强制更新；失败不影响正常使用
 - **SSE 流式响应：** dart:io HttpClient 原生支持，无额外 HTTP 依赖；30s 无数据超时保护（自动取消 stream 并保留已接收内容）；对话上下文滑动窗口限制最近 20 条防超 context window
 - **瓦片缓存：** 自定义 CachedTileProvider 继承 flutter_map TileProvider，文件缓存到 applicationSupportDirectory/tiles/，LRU 淘汰上限 200MB，过期 30 天，离线时返回过期缓存或透明 tile；预缓存改为并发下载（每批 6 个瓦片并行请求）
 - **瓦片源配置：** MapPreferences 存储用户选择（auto/osm/cartoDark/cartoVoyager/cyclosm/amap/custom），auto 模式跟随主题自动切换；高德地图适配中国大陆；选择高德时设置页显示 API Key 输入框（flutter_secure_storage 加密存储），用于反向地理编码
