@@ -302,6 +302,10 @@ class AudienceShoutNotifier extends StateNotifier<AudienceShoutState> {
     final sessionId = _getSessionId();
     if (sessionId == null) return null;
 
+    // 提取本次跑步已有喊话内容，供 prompt 反重复
+    final previousShouts =
+        state.allShouts.map((s) => s.content).toList();
+
     // 使用单例引擎，保持并发互斥锁有效
     final engine = _ref.read(audienceEngineProvider);
     return engine.generateShout(
@@ -310,6 +314,7 @@ class AudienceShoutNotifier extends StateNotifier<AudienceShoutState> {
       profile: profile,
       mood: state.mood,
       sessionId: sessionId,
+      previousShouts: previousShouts,
       startTime: _ref.read(trackingProvider.notifier).currentStartTime,
       weatherInfo: _weatherInfo,
     );

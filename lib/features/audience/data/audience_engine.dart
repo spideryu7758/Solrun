@@ -67,6 +67,7 @@ class AudienceEngine {
     required RunnerProfile profile,
     required MoodState mood,
     required int sessionId,
+    List<String> previousShouts = const [],
     DateTime? startTime,
     WeatherInfo? weatherInfo,
   }) async {
@@ -102,6 +103,7 @@ class AudienceEngine {
         triggerContext: triggerContext,
         mood: mood,
         lang: lang,
+        previousShouts: previousShouts,
         startTime: startTime,
         weatherInfo: weatherInfo,
       );

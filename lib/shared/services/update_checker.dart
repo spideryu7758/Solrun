@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -16,7 +17,9 @@ class UpdateChecker {
   static const _timeout = Duration(seconds: 5);
 
   /// 检查更新（静默，失败不影响正常使用）
+  /// debug 模式跳过，避免开发时版本号不同步误弹更新
   static Future<void> check(BuildContext context) async {
+    if (kDebugMode) return;
     try {
       final info = await _fetchVersionInfo();
       if (info == null) return;

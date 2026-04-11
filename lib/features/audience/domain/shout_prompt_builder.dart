@@ -21,6 +21,7 @@ class ShoutPromptBuilder {
     required TriggerContext triggerContext,
     required MoodState mood,
     required String lang,
+    List<String> previousShouts = const [],
     DateTime? startTime,
     WeatherInfo? weatherInfo,
   }) {
@@ -94,7 +95,7 @@ class ShoutPromptBuilder {
       {'role': 'system', 'content': _systemPrompt(isEn)},
       {
         'role': 'user',
-        'content': _userPrompt(combo, profile, triggerContext, mood, easterEggs, isEn),
+        'content': _userPrompt(combo, profile, triggerContext, mood, easterEggs, previousShouts, isEn),
       },
     ];
   }
@@ -112,6 +113,7 @@ class ShoutPromptBuilder {
           '- No generic cheers like "You got this!" or "You\'re the best!"\n'
           '- Output only the shout itself — no quotes, prefixes, role names, or extra text\n'
           '- If data is mediocre or bad, don\'t force positivity — stay in character\n'
+          '- Never reuse themes, metaphors, imagery, or sentence patterns from previous shouts — each shout must take a completely fresh angle\n'
           '- Do not output any thinking process, analysis, or reasoning — give the final shout directly';
     }
     return '你是一位正在体育场观众席上看比赛的观众。'
@@ -124,6 +126,7 @@ class ShoutPromptBuilder {
         '- 不许用"加油""你是最棒的"等空话\n'
         '- 只输出喊话内容本身，不要加引号、前缀、角色名等任何额外文字\n'
         '- 如果数据一般或不好，不要强行正能量，保持角色真实性\n'
+        '- 严禁重复之前喊话用过的主题、比喻、意象或句式，每条喊话必须切入全新角度\n'
         '- 不要输出任何思考过程、分析或推理，直接给出最终喊话内容';
   }
 
@@ -134,6 +137,7 @@ class ShoutPromptBuilder {
     TriggerContext triggerContext,
     MoodState mood,
     List<String> easterEggs,
+    List<String> previousShouts,
     bool isEn,
   ) {
     final lang = isEn ? 'en' : 'zh';
@@ -173,12 +177,26 @@ class ShoutPromptBuilder {
       buf.writeln();
     }
 
+    // 历史喊话注入（最近 5 条，让 LLM 回避已用过的主题和表达）
+    final recentShouts = previousShouts.length > 5
+        ? previousShouts.sublist(previousShouts.length - 5)
+        : previousShouts;
+    if (recentShouts.isNotEmpty) {
+      buf.writeln(isEn
+          ? '[Previous Shouts This Run — DO NOT repeat their themes, metaphors, or patterns]'
+          : '【本次跑步已有喊话 —— 严禁重复其中的主题、比喻或句式】');
+      for (int i = 0; i < recentShouts.length; i++) {
+        buf.writeln('${i + 1}. ${recentShouts[i]}');
+      }
+      buf.writeln();
+    }
+
     if (isEn) {
       buf.writeln('As ${combo.role.displayName} with ${combo.personality.displayName} style, '
-          'react to the situation above.');
+          'react to the situation above. Take a completely different angle from any previous shouts.');
     } else {
       buf.writeln('请以${combo.role.displayName}·${combo.personality.displayName}的身份，'
-          '针对以上实况做出你的即时反应。');
+          '针对以上实况做出你的即时反应。必须用与之前喊话完全不同的角度和表达方式。');
     }
 
     return buf.toString();
