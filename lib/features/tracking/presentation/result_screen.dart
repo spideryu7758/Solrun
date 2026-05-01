@@ -478,8 +478,8 @@ class ResultScreen extends ConsumerWidget {
   }
 }
 
-final _resultSessionProvider = FutureProvider.family<RunSession?, int>((ref, id) {
-  return ref.read(runSessionDaoProvider).getSessionById(id);
+final _resultSessionProvider = StreamProvider.family<RunSession?, int>((ref, id) {
+  return ref.read(runSessionDaoProvider).watchSessionById(id);
 });
 
 final _resultRouteProvider = FutureProvider.family<List<RoutePoint>, int>((ref, id) {

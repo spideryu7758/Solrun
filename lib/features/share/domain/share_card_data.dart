@@ -149,10 +149,8 @@ class ShareCardData {
   /// 卡路里
   String get caloriesFormatted => '${session.caloriesKcal} kcal';
 
-  /// 海拔（优先使用重新计算的值，回退到数据库值）
-  double get elevationGain => recalculatedElevationGain > 0
-      ? recalculatedElevationGain
-      : session.elevationGainMeters;
+  /// 海拔使用数据库值。结束跑步会先保存 GPS fallback，在线补全后再写入 DEM 结果。
+  double get elevationGain => session.elevationGainMeters;
 
   String get elevationFormatted => '${elevationGain.toStringAsFixed(0)} m';
 }

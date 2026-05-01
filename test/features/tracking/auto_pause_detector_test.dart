@@ -97,12 +97,12 @@ void main() {
   });
 
   group('AutoPauseDetector 步频辅助', () {
-    test('有步频数据时停步 5 秒触发暂停，即使 GPS 速度漂移', () {
+    test('有步频数据时停步 5 秒触发暂停，即使 GPS 轻微漂移', () {
       final t0 = DateTime(2026, 1, 1, 0, 0, 0);
       AutoPauseEvent? lastEvent;
       for (int i = 0; i <= 5; i++) {
         lastEvent = detector.update(
-          0.6,
+          0.35,
           t0.add(Duration(seconds: i)),
           cadenceSpm: 0,
         );
@@ -119,24 +119,44 @@ void main() {
       expect(detector.isPaused, false);
     });
 
-    test('自动暂停后步频恢复到 20 spm 以上才恢复', () {
+    test('低步频时 GPS 明确移动会否决暂停', () {
       final t0 = DateTime(2026, 1, 1, 0, 0, 0);
       for (int i = 0; i <= 5; i++) {
-        detector.update(0.6, t0.add(Duration(seconds: i)), cadenceSpm: 0);
+        detector.update(0.8, t0.add(Duration(seconds: i)), cadenceSpm: 0);
+      }
+      expect(detector.isPaused, false);
+    });
+
+    test('自动暂停后步频或 GPS 明确移动都可恢复', () {
+      final t0 = DateTime(2026, 1, 1, 0, 0, 0);
+      for (int i = 0; i <= 5; i++) {
+        detector.update(0.35, t0.add(Duration(seconds: i)), cadenceSpm: 0);
       }
       expect(detector.isPaused, true);
 
       final driftEvent = detector.update(
-        0.8,
+        0.3,
         t0.add(const Duration(seconds: 8)),
         cadenceSpm: 0,
       );
       expect(driftEvent, isNull);
       expect(detector.isPaused, true);
 
+      final gpsEvent = detector.update(
+        0.8,
+        t0.add(const Duration(seconds: 10)),
+        cadenceSpm: 0,
+      );
+      expect(gpsEvent, AutoPauseEvent.resumed);
+      expect(detector.isPaused, false);
+
+      detector.reset();
+      for (int i = 0; i <= 5; i++) {
+        detector.update(0.35, t0.add(Duration(seconds: i)), cadenceSpm: 0);
+      }
       final stepEvent = detector.update(
         0.1,
-        t0.add(const Duration(seconds: 10)),
+        t0.add(const Duration(seconds: 12)),
         cadenceSpm: 30,
       );
       expect(stepEvent, AutoPauseEvent.resumed);

@@ -32,38 +32,26 @@ class StepCadenceService {
   Stream<CadenceSample> get cadenceStream => _controller.stream;
 
   Future<bool> start() async {
-    if (!Platform.isAndroid) return false;
+    try {
+      if (!Platform.isAndroid) return false;
 
-    final permission = await ph.Permission.activityRecognition.request();
-    if (!permission.isGranted) {
-      _controller.add(
-        CadenceSample(
-          available: false,
-          cadenceSpm: 0,
-          cumulativeSteps: 0,
-          timestamp: DateTime.now(),
-        ),
-      );
-      return false;
-    }
+      final permission = await ph.Permission.activityRecognition.request();
+      if (!permission.isGranted) {
+        _emitUnavailable();
+        return false;
+      }
 
-    final isAvailable =
-        await _methodChannel.invokeMethod<bool>('isAvailable') ?? false;
-    if (!isAvailable) {
-      _controller.add(
-        CadenceSample(
-          available: false,
-          cadenceSpm: 0,
-          cumulativeSteps: 0,
-          timestamp: DateTime.now(),
-        ),
-      );
-      return false;
-    }
+      final isAvailable =
+          await _methodChannel.invokeMethod<bool>('isAvailable') ?? false;
+      if (!isAvailable) {
+        _emitUnavailable();
+        return false;
+      }
 
-    await _subscription?.cancel();
-    _subscription = _eventChannel.receiveBroadcastStream().listen(
-      (dynamic data) {
+      await _subscription?.cancel();
+      _subscription = _eventChannel.receiveBroadcastStream().listen((
+        dynamic data,
+      ) {
         if (data is! Map) return;
         _controller.add(
           CadenceSample(
@@ -76,19 +64,12 @@ class StepCadenceService {
             ),
           ),
         );
-      },
-      onError: (_) {
-        _controller.add(
-          CadenceSample(
-            available: false,
-            cadenceSpm: 0,
-            cumulativeSteps: 0,
-            timestamp: DateTime.now(),
-          ),
-        );
-      },
-    );
-    return true;
+      }, onError: (_) => _emitUnavailable());
+      return true;
+    } catch (_) {
+      _emitUnavailable();
+      return false;
+    }
   }
 
   Future<void> stop() async {
@@ -99,5 +80,17 @@ class StepCadenceService {
   void dispose() {
     stop();
     _controller.close();
+  }
+
+  void _emitUnavailable() {
+    if (_controller.isClosed) return;
+    _controller.add(
+      CadenceSample(
+        available: false,
+        cadenceSpm: 0,
+        cumulativeSteps: 0,
+        timestamp: DateTime.now(),
+      ),
+    );
   }
 }

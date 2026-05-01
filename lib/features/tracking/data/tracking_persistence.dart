@@ -23,10 +23,10 @@ class TrackingPersistence {
     required RoutePointDao routePointDao,
     required SplitPaceDao splitPaceDao,
     required CheckpointService checkpointService,
-  })  : _runSessionDao = runSessionDao,
-        _routePointDao = routePointDao,
-        _splitPaceDao = splitPaceDao,
-        _checkpointService = checkpointService;
+  }) : _runSessionDao = runSessionDao,
+       _routePointDao = routePointDao,
+       _splitPaceDao = splitPaceDao,
+       _checkpointService = checkpointService;
 
   /// 分批落库（释放内存）
   ///
@@ -44,16 +44,18 @@ class TrackingPersistence {
     final companions = buffer
         .asMap()
         .entries
-        .map((e) => RoutePointsCompanion.insert(
-              sessionId: sessionId,
-              latitude: e.value.latitude,
-              longitude: e.value.longitude,
-              altitude: Value(e.value.altitude),
-              accuracy: e.value.accuracy,
-              speed: e.value.speed,
-              timestamp: e.value.timestamp,
-              orderIndex: flushedCount + e.key + 1,
-            ))
+        .map(
+          (e) => RoutePointsCompanion.insert(
+            sessionId: sessionId,
+            latitude: e.value.latitude,
+            longitude: e.value.longitude,
+            altitude: Value(e.value.altitude),
+            accuracy: e.value.accuracy,
+            speed: e.value.speed,
+            timestamp: e.value.timestamp,
+            orderIndex: flushedCount + e.key + 1,
+          ),
+        )
         .toList();
 
     await _routePointDao.insertBatch(companions);
@@ -69,19 +71,18 @@ class TrackingPersistence {
     required List<SplitPaceData> splits,
     required int flushedPointCount,
   }) async {
-    await _checkpointService.writeMeta(CheckpointMeta(
-      startTime: startTime.toIso8601String(),
-      durationSeconds: durationSeconds,
-      distanceMeters: distanceMeters,
-      splitPaces: splits
-          .map((s) => {
-                'km': s.kmIndex,
-                'pace': s.paceSecPerKm,
-              })
-          .toList(),
-      flushedPointCount: flushedPointCount,
-      lastUpdated: DateTime.now().toIso8601String(),
-    ));
+    await _checkpointService.writeMeta(
+      CheckpointMeta(
+        startTime: startTime.toIso8601String(),
+        durationSeconds: durationSeconds,
+        distanceMeters: distanceMeters,
+        splitPaces: splits
+            .map((s) => {'km': s.kmIndex, 'pace': s.paceSecPerKm})
+            .toList(),
+        flushedPointCount: flushedPointCount,
+        lastUpdated: DateTime.now().toIso8601String(),
+      ),
+    );
   }
 
   /// 删除检查点文件
@@ -126,16 +127,39 @@ class TrackingPersistence {
     // 写入分公里配速
     if (splits.isNotEmpty) {
       final splitCompanions = splits
-          .map((s) => SplitPacesCompanion.insert(
-                sessionId: sessionId,
-                kmIndex: s.kmIndex,
-                paceSecPerKm: s.paceSecPerKm,
-                startTime: s.startTime,
-                endTime: s.endTime,
-              ))
+          .map(
+            (s) => SplitPacesCompanion.insert(
+              sessionId: sessionId,
+              kmIndex: s.kmIndex,
+              paceSecPerKm: s.paceSecPerKm,
+              startTime: s.startTime,
+              endTime: s.endTime,
+            ),
+          )
           .toList();
       await _splitPaceDao.insertBatch(splitCompanions);
     }
+  }
+
+  /// 跑步完成后的在线补充信息更新。
+  ///
+  /// 不重复写入分公里，避免异步补充城市/天气/DEM 海拔时产生重复 split。
+  Future<void> updateSessionEnrichment({
+    required int sessionId,
+    required double elevationGainMeters,
+    required String fallbackAutoName,
+    required String enrichedAutoName,
+    required String? city,
+    required String? weather,
+  }) {
+    return _runSessionDao.updateSessionEnrichment(
+      id: sessionId,
+      elevationGainMeters: elevationGainMeters,
+      fallbackAutoName: fallbackAutoName,
+      enrichedAutoName: enrichedAutoName,
+      city: city,
+      weather: weather,
+    );
   }
 
   /// 追加轨迹点到检查点日志（每个 GPS 点实时写入）

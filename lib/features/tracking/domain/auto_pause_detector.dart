@@ -1,7 +1,7 @@
 /// 自动暂停检测器
-/// - 有步频传感器时：步频 < 10 spm 持续 5 秒 → 触发暂停
+/// - 有步频传感器时：低步频 + GPS 未明确移动 → 触发暂停
 /// - 无步频传感器时：低速或小位移持续 5 秒 → 触发暂停
-/// - 恢复时优先使用步频，传感器不可用时回退 GPS 速度
+/// - 恢复时步频或 GPS 任一明确移动即可恢复
 /// - 使用迟滞（hysteresis）避免临界值震荡
 class AutoPauseDetector {
   /// 暂停触发速度阈值（m/s）。1.0 km/h ≈ 0.278 m/s
@@ -58,12 +58,15 @@ class AutoPauseDetector {
         (hasReliableDisplacement &&
             recentDisplacementMeters >= resumeDisplacementThresholdMeters);
 
+    final lowCadence =
+        cadenceSpm != null && cadenceSpm < pauseCadenceThresholdSpm;
+    final resumedCadence =
+        cadenceSpm != null && cadenceSpm >= resumeCadenceThresholdSpm;
+
     final shouldPause = cadenceSpm != null
-        ? cadenceSpm < pauseCadenceThresholdSpm
+        ? lowCadence && !resumedGpsMotion
         : lowGpsMotion;
-    final shouldResume = cadenceSpm != null
-        ? cadenceSpm >= resumeCadenceThresholdSpm
-        : resumedGpsMotion;
+    final shouldResume = resumedCadence || resumedGpsMotion;
 
     if (_isPaused) {
       // 当前已暂停，检查是否应恢复
@@ -82,7 +85,7 @@ class AutoPauseDetector {
           return AutoPauseEvent.paused;
         }
       } else {
-        // 速度或步频恢复到暂停阈值以上，重置计时
+        // GPS 明确移动或步频恢复时，重置低运动计时。
         _slowSince = null;
       }
     }

@@ -6,7 +6,8 @@ import '../run_session_status.dart';
 part 'run_session_dao.g.dart';
 
 @DriftAccessor(tables: [RunSessions])
-class RunSessionDao extends DatabaseAccessor<AppDatabase> with _$RunSessionDaoMixin {
+class RunSessionDao extends DatabaseAccessor<AppDatabase>
+    with _$RunSessionDaoMixin {
   RunSessionDao(super.db);
 
   /// 插入跑步记录，返回自增 ID
@@ -16,12 +17,23 @@ class RunSessionDao extends DatabaseAccessor<AppDatabase> with _$RunSessionDaoMi
 
   /// 获取所有跑步记录（按开始时间倒序）
   Future<List<RunSession>> getAllSessions() {
-    return (select(runSessions)..orderBy([(t) => OrderingTerm.desc(t.startTime)])).get();
+    return (select(
+      runSessions,
+    )..orderBy([(t) => OrderingTerm.desc(t.startTime)])).get();
   }
 
   /// 按 ID 获取单条记录
   Future<RunSession?> getSessionById(int id) {
-    return (select(runSessions)..where((t) => t.id.equals(id))).getSingleOrNull();
+    return (select(
+      runSessions,
+    )..where((t) => t.id.equals(id))).getSingleOrNull();
+  }
+
+  /// 监听单条跑步记录，用于跑后 DEM/天气补全后刷新结果页和分享页。
+  Stream<RunSession?> watchSessionById(int id) {
+    return (select(
+      runSessions,
+    )..where((t) => t.id.equals(id))).watchSingleOrNull();
   }
 
   /// 获取本周的跑步记录
@@ -29,7 +41,11 @@ class RunSessionDao extends DatabaseAccessor<AppDatabase> with _$RunSessionDaoMi
     final now = DateTime.now();
     // 本周一 00:00
     final weekStart = now.subtract(Duration(days: now.weekday - 1));
-    final mondayMidnight = DateTime(weekStart.year, weekStart.month, weekStart.day);
+    final mondayMidnight = DateTime(
+      weekStart.year,
+      weekStart.month,
+      weekStart.day,
+    );
     return (select(runSessions)
           ..where((t) => t.startTime.isBiggerOrEqualValue(mondayMidnight))
           ..where((t) => t.status.equals(RunSessionStatus.completed))
@@ -40,6 +56,30 @@ class RunSessionDao extends DatabaseAccessor<AppDatabase> with _$RunSessionDaoMi
   /// 更新跑步记录（endRun 时更新 status、距离、时长等）
   Future<bool> updateSession(RunSessionsCompanion session) {
     return update(runSessions).replace(session);
+  }
+
+  /// 更新跑后补充信息，不重写分公里和核心运动统计。
+  Future<int> updateSessionEnrichment({
+    required int id,
+    required double elevationGainMeters,
+    required String fallbackAutoName,
+    required String enrichedAutoName,
+    required String? city,
+    required String? weather,
+  }) async {
+    final updated = await (update(runSessions)..where((t) => t.id.equals(id)))
+        .write(
+          RunSessionsCompanion(
+            elevationGainMeters: Value(elevationGainMeters),
+            city: Value(city),
+            weather: Value(weather),
+          ),
+        );
+    await (update(runSessions)
+          ..where((t) => t.id.equals(id))
+          ..where((t) => t.autoName.equals(fallbackAutoName)))
+        .write(RunSessionsCompanion(autoName: Value(enrichedAutoName)));
+    return updated;
   }
 
   /// 删除跑步记录（级联删除在调用方处理）
@@ -57,7 +97,9 @@ class RunSessionDao extends DatabaseAccessor<AppDatabase> with _$RunSessionDaoMi
 
   /// 监听所有记录（响��式）
   Stream<List<RunSession>> watchAllSessions() {
-    return (select(runSessions)..orderBy([(t) => OrderingTerm.desc(t.startTime)])).watch();
+    return (select(
+      runSessions,
+    )..orderBy([(t) => OrderingTerm.desc(t.startTime)])).watch();
   }
 
   /// 获取已完成跑步总次数
@@ -85,10 +127,13 @@ class RunSessionDao extends DatabaseAccessor<AppDatabase> with _$RunSessionDaoMi
   Future<int?> getBestPace({required double minDistance}) async {
     // 等效配速 = durationSeconds * 1000 / distanceMeters
     // SQL 层无法直接 min() 表达式，查询符合距离的记录在 Dart 端取最小值
-    final rows = await (select(runSessions)
-          ..where((t) => t.status.equals(RunSessionStatus.completed))
-          ..where((t) => t.distanceMeters.isBiggerOrEqualValue(minDistance)))
-        .get();
+    final rows =
+        await (select(runSessions)
+              ..where((t) => t.status.equals(RunSessionStatus.completed))
+              ..where(
+                (t) => t.distanceMeters.isBiggerOrEqualValue(minDistance),
+              ))
+            .get();
     if (rows.isEmpty) return null;
     int? best;
     for (final r in rows) {

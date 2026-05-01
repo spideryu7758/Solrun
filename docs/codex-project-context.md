@@ -154,3 +154,16 @@ claiming full validation from unit tests alone:
 `CLAUDE.md` is useful but partly stale in dependency-version examples. Prefer
 `pubspec.yaml` for exact package versions and `lib/app/router.dart` for current
 routes. For example, the active audience tab route is `/audience`, not `/ai`.
+
+## Follow-Up Backlog
+
+- Elevation source tracking: add a persisted `elevationSource` or
+  `elevationComputedAt` field so old records can distinguish "true 0 m climb"
+  from "missing/default 0 m". Until then, new runs should use saved
+  `elevationGainMeters`; old imported or pre-DEM records may need manual or
+  migration-time recalculation.
+- Regression tests: once Flutter dependency resolution works on this host, add
+  tests for two-stage run finalization, `updateSessionEnrichment` not duplicating
+  split rows, result/share providers refreshing after session enrichment, share
+  card elevation source behavior, and user-renamed runs not being overwritten by
+  background enrichment.

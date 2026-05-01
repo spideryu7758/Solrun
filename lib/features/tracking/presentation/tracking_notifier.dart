@@ -50,6 +50,8 @@ class TrackingNotifier extends StateNotifier<TrackingState> {
   int? _currentCadenceSpm;
   DateTime? _lastStepAt;
   final List<TrackPoint> _autoPauseWindow = [];
+  int _runGeneration = 0;
+  bool _isEndingRun = false;
 
   // 内存中的轨迹点缓冲（分批落库后释放）
   final List<TrackPoint> _pointBuffer = [];
@@ -108,6 +110,8 @@ class TrackingNotifier extends StateNotifier<TrackingState> {
     _pausedDurationSec = 0;
     _pauseStartTime = null;
     _sessionId = null;
+    _runGeneration++;
+    _isEndingRun = false;
     lastEndRunResult = null;
     _pointBuffer.clear();
     _flushedPointCount = 0;
@@ -167,13 +171,6 @@ class TrackingNotifier extends StateNotifier<TrackingState> {
     await _locationService.startTracking();
     _gpsSub = _locationService.trackPointStream.listen(_onGpsPoint);
 
-    _cadenceSensorAvailable = await _stepCadenceService.start();
-    _currentCadenceSpm = _cadenceSensorAvailable ? 0 : null;
-    if (_cadenceSensorAvailable) {
-      _cadenceSub = _stepCadenceService.cadenceStream.listen(_onCadenceSample);
-      state = state.copyWith(cadenceSpm: 0);
-    }
-
     // 启动计时器（每秒更新）
     _timer = Timer.periodic(const Duration(seconds: 1), (_) => _onTick());
 
@@ -182,6 +179,28 @@ class TrackingNotifier extends StateNotifier<TrackingState> {
       const Duration(seconds: 30),
       (_) => _writeCheckpoint(),
     );
+
+    // 步频权限可能弹系统框，不能阻塞 GPS 记录和计时。
+    unawaited(_startCadenceTracking(_sessionId, _runGeneration));
+  }
+
+  Future<void> _startCadenceTracking(int? sessionId, int generation) async {
+    final available = await _stepCadenceService.start();
+    if (_sessionId != sessionId ||
+        _runGeneration != generation ||
+        _isEndingRun ||
+        state.status == TrackingStatus.finished) {
+      await _stepCadenceService.stop();
+      return;
+    }
+
+    _cadenceSensorAvailable = available;
+    _currentCadenceSpm = available ? 0 : null;
+    if (!available) return;
+
+    await _cadenceSub?.cancel();
+    _cadenceSub = _stepCadenceService.cadenceStream.listen(_onCadenceSample);
+    state = state.copyWith(cadenceSpm: 0);
   }
 
   void _onCadenceSample(CadenceSample sample) {
@@ -371,6 +390,8 @@ class TrackingNotifier extends StateNotifier<TrackingState> {
 
   /// 结束跑步
   Future<TrackingResult> endRun() async {
+    _isEndingRun = true;
+    _runGeneration++;
     _timer?.cancel();
     _checkpointTimer?.cancel();
     await _gpsSub?.cancel();
@@ -384,9 +405,6 @@ class TrackingNotifier extends StateNotifier<TrackingState> {
       await WakelockPlus.disable();
       _wakelockActive = false;
     }
-
-    // 停止原生 GPS 前台服务
-    await _locationService.stopTracking();
 
     final endTime = DateTime.now();
 
@@ -408,53 +426,54 @@ class TrackingNotifier extends StateNotifier<TrackingState> {
               .reduce((a, b) => a < b ? a : b)
         : 0;
 
+    final sessionId = _sessionId;
+    final startTime = _startTime;
+    if (sessionId == null || startTime == null) {
+      throw StateError('Cannot end run before a session is created');
+    }
+
     // 获取语言设置
     final locale =
         (await SharedPreferences.getInstance()).getString('locale') ?? 'zh';
     final lang = locale.startsWith('en') ? 'en' : 'zh';
 
-    // 获取城市和天气信息
-    final geoWeather = await _finalizer.fetchCityAndWeather(
-      sessionId: _sessionId!,
-      lang: lang,
-    );
-    final elevationGainMeters = await _finalizer.calculateElevationGain(
-      sessionId: _sessionId!,
-      gpsFallbackMeters: _elevationCalculator.totalGainMeters,
+    final gpsElevationGainMeters = _elevationCalculator.totalGainMeters;
+    final fallbackAutoName = _generateAutoName(startTime, lang: lang);
+
+    // 先保存本地可得结果，结束跑步不依赖网络。
+    await _persistence.saveSession(
+      sessionId: sessionId,
+      startTime: startTime,
+      endTime: endTime,
+      durationSeconds: state.durationSeconds,
+      distanceMeters: state.distanceMeters,
+      avgPace: avgPace,
+      bestPace: bestPace,
+      caloriesKcal: state.caloriesKcal,
+      elevationGainMeters: gpsElevationGainMeters,
+      autoName: fallbackAutoName,
+      city: null,
+      weather: null,
+      splits: _paceCalculator.splits,
     );
 
-    // 持久化：更新 RunSession + 写入分公里配速
-    if (_sessionId != null) {
-      await _persistence.saveSession(
-        sessionId: _sessionId!,
-        startTime: _startTime!,
-        endTime: endTime,
-        durationSeconds: state.durationSeconds,
-        distanceMeters: state.distanceMeters,
-        avgPace: avgPace,
-        bestPace: bestPace,
-        caloriesKcal: state.caloriesKcal,
-        elevationGainMeters: elevationGainMeters,
-        autoName: _generateAutoName(
-          _startTime!,
-          city: geoWeather.city,
-          lang: lang,
-        ),
-        city: geoWeather.city,
-        weather: geoWeather.weather,
-        splits: _paceCalculator.splits,
-      );
-    }
+    unawaited(
+      _enrichCompletedRun(
+        sessionId: sessionId,
+        startTime: startTime,
+        lang: lang,
+        gpsElevationGainMeters: gpsElevationGainMeters,
+        fallbackAutoName: fallbackAutoName,
+      ),
+    );
 
     // 检测成就
-    if (_sessionId != null) {
-      await _finalizer.checkAchievements(
-        sessionId: _sessionId!,
-        distanceMeters: state.distanceMeters,
-        durationSeconds: state.durationSeconds,
-        avgPaceSecPerKm: avgPace,
-      );
-    }
+    await _finalizer.checkAchievements(
+      sessionId: sessionId,
+      distanceMeters: state.distanceMeters,
+      durationSeconds: state.durationSeconds,
+      avgPaceSecPerKm: avgPace,
+    );
 
     // 检测观众角色解锁
     await _finalizer.checkAudienceUnlocks();
@@ -479,8 +498,42 @@ class TrackingNotifier extends StateNotifier<TrackingState> {
 
     // 所有数据库操作完成后才设置 finished，触发 ref.listen 导航
     state = state.copyWith(status: TrackingStatus.finished);
+    _isEndingRun = false;
 
     return result;
+  }
+
+  Future<void> _enrichCompletedRun({
+    required int sessionId,
+    required DateTime startTime,
+    required String lang,
+    required double gpsElevationGainMeters,
+    required String fallbackAutoName,
+  }) async {
+    try {
+      final geoWeather = await _finalizer.fetchCityAndWeather(
+        sessionId: sessionId,
+        lang: lang,
+      );
+      final elevationGainMeters = await _finalizer.calculateElevationGain(
+        sessionId: sessionId,
+        gpsFallbackMeters: gpsElevationGainMeters,
+      );
+      await _persistence.updateSessionEnrichment(
+        sessionId: sessionId,
+        elevationGainMeters: elevationGainMeters,
+        fallbackAutoName: fallbackAutoName,
+        enrichedAutoName: _generateAutoName(
+          startTime,
+          city: geoWeather.city,
+          lang: lang,
+        ),
+        city: geoWeather.city,
+        weather: geoWeather.weather,
+      );
+    } catch (_) {
+      // 本地跑步记录已经保存，在线补充信息失败时保持 GPS fallback。
+    }
   }
 
   /// 分批落库（释放内存）
