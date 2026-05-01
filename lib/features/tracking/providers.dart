@@ -1,9 +1,16 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../data/providers.dart' show runSessionDaoProvider, routePointDaoProvider, splitPaceDaoProvider, achievementDaoProvider, audienceUnlockDaoProvider;
+import '../../data/providers.dart'
+    show
+        runSessionDaoProvider,
+        routePointDaoProvider,
+        splitPaceDaoProvider,
+        achievementDaoProvider,
+        audienceUnlockDaoProvider;
 import '../../../shared/services/tts_service.dart';
 import 'data/checkpoint_service.dart';
 import 'data/location_service.dart';
+import 'data/step_cadence_service.dart';
 import 'data/tracking_persistence.dart';
 import 'domain/run_finalizer.dart';
 import 'presentation/tracking_notifier.dart';
@@ -11,6 +18,12 @@ import 'presentation/tracking_state.dart';
 
 final locationServiceProvider = Provider<LocationService>((ref) {
   final service = LocationService();
+  ref.onDispose(() => service.dispose());
+  return service;
+});
+
+final stepCadenceServiceProvider = Provider<StepCadenceService>((ref) {
+  final service = StepCadenceService();
   ref.onDispose(() => service.dispose());
   return service;
 });
@@ -37,12 +50,15 @@ final runFinalizerProvider = Provider<RunFinalizer>((ref) {
   );
 });
 
-final trackingProvider = StateNotifierProvider<TrackingNotifier, TrackingState>((ref) {
-  return TrackingNotifier(
-    ref.read(locationServiceProvider),
-    ref.read(runSessionDaoProvider),
-    ref.read(ttsServiceProvider),
-    ref.read(trackingPersistenceProvider),
-    ref.read(runFinalizerProvider),
-  );
-});
+final trackingProvider = StateNotifierProvider<TrackingNotifier, TrackingState>(
+  (ref) {
+    return TrackingNotifier(
+      ref.read(locationServiceProvider),
+      ref.read(stepCadenceServiceProvider),
+      ref.read(runSessionDaoProvider),
+      ref.read(ttsServiceProvider),
+      ref.read(trackingPersistenceProvider),
+      ref.read(runFinalizerProvider),
+    );
+  },
+);

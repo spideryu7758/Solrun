@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:drift/drift.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
@@ -10,6 +11,7 @@ import '../../../data/database.dart';
 import '../../../data/daos/run_session_dao.dart';
 import '../../../shared/services/tts_service.dart';
 import '../data/location_service.dart';
+import '../data/step_cadence_service.dart';
 import '../data/tracking_persistence.dart';
 import '../domain/auto_pause_detector.dart';
 import '../domain/elevation_calculator.dart';
@@ -20,6 +22,7 @@ import 'tracking_state.dart';
 /// 运动核心状态管理器
 class TrackingNotifier extends StateNotifier<TrackingState> {
   final LocationService _locationService;
+  final StepCadenceService _stepCadenceService;
   final RunSessionDao _runSessionDao;
   final TtsService _ttsService;
   final TrackingPersistence _persistence;
@@ -29,6 +32,7 @@ class TrackingNotifier extends StateNotifier<TrackingState> {
   final ElevationCalculator _elevationCalculator = ElevationCalculator();
 
   StreamSubscription<TrackPoint>? _gpsSub;
+  StreamSubscription<CadenceSample>? _cadenceSub;
   Timer? _timer;
   Timer? _checkpointTimer;
 
@@ -42,6 +46,10 @@ class TrackingNotifier extends StateNotifier<TrackingState> {
   int _ttsIntervalKm = 1;
   int _lastAnnouncedKm = 0;
   int? _sessionId;
+  bool _cadenceSensorAvailable = false;
+  int? _currentCadenceSpm;
+  DateTime? _lastStepAt;
+  final List<TrackPoint> _autoPauseWindow = [];
 
   // 内存中的轨迹点缓冲（分批落库后释放）
   final List<TrackPoint> _pointBuffer = [];
@@ -59,6 +67,7 @@ class TrackingNotifier extends StateNotifier<TrackingState> {
 
   TrackingNotifier(
     this._locationService,
+    this._stepCadenceService,
     this._runSessionDao,
     this._ttsService,
     this._persistence,
@@ -89,7 +98,10 @@ class TrackingNotifier extends StateNotifier<TrackingState> {
     _checkpointTimer = null;
     await _gpsSub?.cancel();
     _gpsSub = null;
+    await _cadenceSub?.cancel();
+    _cadenceSub = null;
     await _locationService.forceStop();
+    await _stepCadenceService.stop();
 
     // 全量重置状态
     state = const TrackingState();
@@ -100,6 +112,10 @@ class TrackingNotifier extends StateNotifier<TrackingState> {
     _pointBuffer.clear();
     _flushedPointCount = 0;
     _orderIndex = 0;
+    _cadenceSensorAvailable = false;
+    _currentCadenceSpm = null;
+    _lastStepAt = null;
+    _autoPauseWindow.clear();
 
     // 请求 GPS 权限
     final granted = await _locationService.requestPermission();
@@ -151,6 +167,13 @@ class TrackingNotifier extends StateNotifier<TrackingState> {
     await _locationService.startTracking();
     _gpsSub = _locationService.trackPointStream.listen(_onGpsPoint);
 
+    _cadenceSensorAvailable = await _stepCadenceService.start();
+    _currentCadenceSpm = _cadenceSensorAvailable ? 0 : null;
+    if (_cadenceSensorAvailable) {
+      _cadenceSub = _stepCadenceService.cadenceStream.listen(_onCadenceSample);
+      state = state.copyWith(cadenceSpm: 0);
+    }
+
     // 启动计时器（每秒更新）
     _timer = Timer.periodic(const Duration(seconds: 1), (_) => _onTick());
 
@@ -159,6 +182,21 @@ class TrackingNotifier extends StateNotifier<TrackingState> {
       const Duration(seconds: 30),
       (_) => _writeCheckpoint(),
     );
+  }
+
+  void _onCadenceSample(CadenceSample sample) {
+    if (!sample.available) {
+      _cadenceSensorAvailable = false;
+      _currentCadenceSpm = null;
+      return;
+    }
+
+    _cadenceSensorAvailable = true;
+    _currentCadenceSpm = sample.cadenceSpm;
+    if (sample.cumulativeSteps > 0) {
+      _lastStepAt = sample.timestamp;
+    }
+    state = state.copyWith(cadenceSpm: sample.cadenceSpm);
   }
 
   /// GPS 点回调
@@ -173,7 +211,15 @@ class TrackingNotifier extends StateNotifier<TrackingState> {
 
     // 自动暂停检测（保持 3s 高频采样，不降频，确保恢复灵敏）
     if (_autoPauseEnabled) {
-      final event = _autoPauseDetector.update(point.speed, point.timestamp);
+      _autoPauseWindow.add(point);
+      _trimAutoPauseWindow(point.timestamp);
+      final event = _autoPauseDetector.update(
+        point.speed,
+        point.timestamp,
+        cadenceSpm: _cadenceForPause(point.timestamp),
+        recentDisplacementMeters: _recentAutoPauseDisplacement(),
+        accuracyMeters: point.accuracy,
+      );
       if (event == AutoPauseEvent.paused) {
         _pauseStartTime = DateTime.now();
         state = state.copyWith(status: TrackingStatus.autoPaused);
@@ -242,6 +288,7 @@ class TrackingNotifier extends StateNotifier<TrackingState> {
 
   /// 每秒计时
   void _onTick() {
+    _refreshCadenceStaleness();
     if (state.status != TrackingStatus.running) return;
     if (_startTime == null) return;
 
@@ -253,6 +300,45 @@ class TrackingNotifier extends StateNotifier<TrackingState> {
     }
 
     state = state.copyWith(durationSeconds: activeDuration);
+  }
+
+  int? _cadenceForPause(DateTime now) {
+    if (!_cadenceSensorAvailable) return null;
+    final lastStepAt = _lastStepAt;
+    if (lastStepAt == null || now.difference(lastStepAt).inSeconds > 6) {
+      return 0;
+    }
+    if ((_currentCadenceSpm ?? 0) == 0 &&
+        now.difference(lastStepAt).inSeconds <= 3) {
+      return AutoPauseDetector.resumeCadenceThresholdSpm;
+    }
+    return _currentCadenceSpm ?? 0;
+  }
+
+  void _refreshCadenceStaleness() {
+    if (!_cadenceSensorAvailable || _currentCadenceSpm == 0) return;
+    final lastStepAt = _lastStepAt;
+    if (lastStepAt != null &&
+        DateTime.now().difference(lastStepAt).inSeconds > 6) {
+      _currentCadenceSpm = 0;
+      state = state.copyWith(cadenceSpm: 0);
+    }
+  }
+
+  void _trimAutoPauseWindow(DateTime now) {
+    final cutoff = now.subtract(const Duration(seconds: 12));
+    _autoPauseWindow.removeWhere((point) => point.timestamp.isBefore(cutoff));
+  }
+
+  double? _recentAutoPauseDisplacement() {
+    if (_autoPauseWindow.length < 2) return null;
+    final first = _autoPauseWindow.first;
+    final last = _autoPauseWindow.last;
+    return Distance().as(
+      LengthUnit.Meter,
+      LatLng(first.latitude, first.longitude),
+      LatLng(last.latitude, last.longitude),
+    );
   }
 
   /// 手动暂停
@@ -288,6 +374,9 @@ class TrackingNotifier extends StateNotifier<TrackingState> {
     _timer?.cancel();
     _checkpointTimer?.cancel();
     await _gpsSub?.cancel();
+    await _cadenceSub?.cancel();
+    _cadenceSub = null;
+    await _stepCadenceService.stop();
     await _locationService.stopTracking();
 
     // 释放屏幕常亮
@@ -466,7 +555,9 @@ class TrackingNotifier extends StateNotifier<TrackingState> {
     _timer?.cancel();
     _checkpointTimer?.cancel();
     _gpsSub?.cancel();
+    _cadenceSub?.cancel();
     _locationService.forceStop();
+    _stepCadenceService.stop();
     if (_wakelockActive) WakelockPlus.disable();
     super.dispose();
   }

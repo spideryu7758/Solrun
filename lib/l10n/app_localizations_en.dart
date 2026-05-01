@@ -192,6 +192,9 @@ class SEn extends S {
   String get tracking_labelDuration => 'DURATION';
 
   @override
+  String get tracking_labelCadence => 'CADENCE';
+
+  @override
   String get tracking_labelCalories => 'CALORIES';
 
   @override
@@ -584,7 +587,7 @@ class SEn extends S {
 
   @override
   String get settings_autoPauseDesc =>
-      'Pauses when speed < 1.0 km/h for 5 seconds';
+      'Pauses after 5 seconds stopped or moving slowly';
 
   @override
   String get settings_ttsSection => 'VOICE BROADCAST';

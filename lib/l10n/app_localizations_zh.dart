@@ -192,6 +192,9 @@ class SZh extends S {
   String get tracking_labelDuration => '时长';
 
   @override
+  String get tracking_labelCadence => '步频';
+
+  @override
   String get tracking_labelCalories => '卡路里';
 
   @override
@@ -576,7 +579,7 @@ class SZh extends S {
   String get settings_autoPause => '自动暂停';
 
   @override
-  String get settings_autoPauseDesc => '速度 < 1.0 km/h 持续 5 秒自动暂停';
+  String get settings_autoPauseDesc => '停步或低速持续 5 秒自动暂停';
 
   @override
   String get settings_ttsSection => '语音播报';

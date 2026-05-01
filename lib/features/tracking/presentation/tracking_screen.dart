@@ -15,11 +15,12 @@ import '../../../shared/widgets/rp_components.dart';
 import '../../../shared/widgets/run_map.dart';
 import '../../audience/presentation/mood_selector.dart';
 import '../../audience/presentation/shout_overlay.dart';
-import '../../audience/providers.dart' show
-    audienceHomeProvider,
-    audienceShoutProvider,
-    unlockedAudienceRolesProvider,
-    unlockedRolesProvider;
+import '../../audience/providers.dart'
+    show
+        audienceHomeProvider,
+        audienceShoutProvider,
+        unlockedAudienceRolesProvider,
+        unlockedRolesProvider;
 import '../providers.dart';
 import 'tracking_state.dart';
 
@@ -54,7 +55,10 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _moveAnimController = AnimationController(vsync: this, duration: _moveDuration);
+    _moveAnimController = AnimationController(
+      vsync: this,
+      duration: _moveDuration,
+    );
     _loadGcj02Flag();
     // 不再自动开始倒计时，等用户选完状态后手动触发
   }
@@ -181,9 +185,9 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen>
                 key: ValueKey(shoutState.currentShout!.shoutId),
                 shout: shoutState.currentShout!,
                 onFavorite: () {
-                  ref.read(audienceShoutProvider.notifier).favoriteShout(
-                    shoutState.currentShout!.shoutId,
-                  );
+                  ref
+                      .read(audienceShoutProvider.notifier)
+                      .favoriteShout(shoutState.currentShout!.shoutId);
                 },
                 onDismissed: () {
                   ref.read(audienceShoutProvider.notifier).clearCurrentShout();
@@ -197,7 +201,10 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen>
 
   Widget _buildMap(TrackingState state) {
     final center = state.recentPoints.isNotEmpty
-        ? LatLng(state.recentPoints.last.latitude, state.recentPoints.last.longitude)
+        ? LatLng(
+            state.recentPoints.last.latitude,
+            state.recentPoints.last.longitude,
+          )
         : const LatLng(39.9, 116.4);
 
     final polylinePoints = state.recentPoints
@@ -205,7 +212,8 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen>
         .toList();
 
     // 自动跟随当前位置（节流 + 平滑动画）
-    if (state.recentPoints.isNotEmpty && state.status == TrackingStatus.running) {
+    if (state.recentPoints.isNotEmpty &&
+        state.status == TrackingStatus.running) {
       _smoothMoveToCenter(center);
     }
 
@@ -225,7 +233,10 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen>
           ),
           // 底部渐变融合
           Positioned(
-            left: 0, right: 0, bottom: 0, height: 40,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            height: 40,
             child: IgnorePointer(
               child: Container(
                 decoration: BoxDecoration(
@@ -239,11 +250,7 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen>
             ),
           ),
           // 运行状态标签
-          Positioned(
-            top: 12,
-            left: 12,
-            child: _buildStatusBadge(state),
-          ),
+          Positioned(top: 12, left: 12, child: _buildStatusBadge(state)),
         ],
       ),
     );
@@ -268,12 +275,17 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen>
       final from = _lastCenter ?? convertedTarget;
 
       controller.reset();
-      final animation = CurvedAnimation(parent: controller, curve: Curves.easeInOut);
+      final animation = CurvedAnimation(
+        parent: controller,
+        curve: Curves.easeInOut,
+      );
 
       void listener() {
         final t = animation.value;
-        final lat = from.latitude + (convertedTarget.latitude - from.latitude) * t;
-        final lng = from.longitude + (convertedTarget.longitude - from.longitude) * t;
+        final lat =
+            from.latitude + (convertedTarget.latitude - from.latitude) * t;
+        final lng =
+            from.longitude + (convertedTarget.longitude - from.longitude) * t;
         try {
           _mapController.move(LatLng(lat, lng), currentZoom);
         } catch (_) {}
@@ -323,7 +335,8 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen>
                 minScale: 1.0,
                 maxScale: 1.5,
                 child: Container(
-                  width: 6, height: 6,
+                  width: 6,
+                  height: 6,
                   decoration: BoxDecoration(
                     color: context.rpAccent,
                     shape: BoxShape.circle,
@@ -370,14 +383,32 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen>
           ),
           const SizedBox(height: 16),
 
-          // 三列数据卡片
+          // 数据卡片
           Row(
             children: [
-              _buildMetricCard(state.paceDisplay, S.of(context)!.tracking_labelPace, context.rpAccent),
+              _buildMetricCard(
+                state.paceDisplay,
+                S.of(context)!.tracking_labelPace,
+                context.rpAccent,
+              ),
               const SizedBox(width: 8),
-              _buildMetricCard(state.durationDisplay, S.of(context)!.tracking_labelDuration, context.rpText),
+              _buildMetricCard(
+                state.durationDisplay,
+                S.of(context)!.tracking_labelDuration,
+                context.rpText,
+              ),
               const SizedBox(width: 8),
-              _buildMetricCard('${state.caloriesKcal}', S.of(context)!.tracking_labelCalories, context.rpAccent2),
+              _buildMetricCard(
+                state.cadenceDisplay,
+                S.of(context)!.tracking_labelCadence,
+                context.rpAccent2,
+              ),
+              const SizedBox(width: 8),
+              _buildMetricCard(
+                '${state.caloriesKcal}',
+                S.of(context)!.tracking_labelCalories,
+                context.rpMuted,
+              ),
             ],
           ),
           const Spacer(),
@@ -424,7 +455,8 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen>
   Widget _buildControls(TrackingState state) {
     final notifier = ref.read(trackingProvider.notifier);
     final isRunning = state.status == TrackingStatus.running;
-    final isPaused = state.status == TrackingStatus.paused ||
+    final isPaused =
+        state.status == TrackingStatus.paused ||
         state.status == TrackingStatus.autoPaused;
 
     return Row(
@@ -442,7 +474,8 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen>
             }
           },
           child: Container(
-            width: 72, height: 72,
+            width: 72,
+            height: 72,
             decoration: BoxDecoration(
               color: SolrunColors.accent,
               shape: BoxShape.circle,
@@ -480,7 +513,8 @@ class _TrackingScreenState extends ConsumerState<TrackingScreen>
     return RpTapScale(
       onTap: onTap,
       child: Container(
-        width: size, height: size,
+        width: size,
+        height: size,
         decoration: BoxDecoration(
           color: context.rpCard,
           shape: BoxShape.circle,

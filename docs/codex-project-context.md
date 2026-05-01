@@ -28,6 +28,11 @@ Main user flows:
 - Drift SQLite for local persistence.
 - Android GPS: native Kotlin `RunLocationService` using Fused Location plus
   `LocationManager`, connected to Flutter through `MethodChannel`/`EventChannel`.
+- Android cadence: native `TYPE_STEP_DETECTOR` through `step_stream`, guarded by
+  `ACTIVITY_RECOGNITION`; unavailable sensors or denied permission fall back to
+  GPS-speed auto-pause logic.
+- Auto-pause: cadence first when available; otherwise GPS fallback combines
+  speed, recent displacement, and accuracy instead of trusting `speed` alone.
 - iOS GPS: geolocator `AppleSettings`.
 - Map rendering: `flutter_map`, WGS-84 storage, GCJ-02 conversion only for AMap.
 - LLM: provider abstraction supporting OpenAI-compatible providers and Anthropic.
@@ -45,6 +50,10 @@ Main user flows:
 - `lib/features/tracking/presentation/tracking_notifier.dart`: run state machine.
 - `lib/features/tracking/data/location_service.dart`: Dart-side platform GPS
   adapter.
+- `lib/features/tracking/data/step_cadence_service.dart`: Android step detector
+  stream and real-time cadence samples.
+- `lib/features/tracking/domain/auto_pause_detector.dart`: cadence-first
+  auto-pause with GPS speed/displacement/accuracy fallback.
 - `android/app/src/main/kotlin/com/runpure/run_pure/RunLocationService.kt`:
   Android native background GPS service.
 - `lib/features/tracking/domain/pace_calculator.dart`: distance, real-time pace,
@@ -68,6 +77,10 @@ Main user flows:
   growth.
 - Checkpoints are written during active runs for crash recovery.
 - Android native GPS service is intentionally independent of the Flutter engine.
+- Auto-pause should prefer cadence when available, because GPS speed may drift
+  while the runner is standing still. Without cadence, use combined GPS speed,
+  recent displacement, and accuracy. It must still work without cadence sensor
+  permission by falling back to GPS motion heuristics.
 - Elevation correction is optional. Runs must still finish and save if the
   Open-Meteo DEM request fails, times out, or the phone is offline.
 - AI failures must not block the core running flow.
@@ -84,6 +97,8 @@ For feature optimization, first classify the change:
 - Algorithmic: isolate in `domain/` where possible and add targeted tests.
 - Persistence: update migration/codegen/test path before UI polish.
 - Tracking/GPS: make the smallest safe change and plan real-device verification.
+- Cadence/auto-pause: verify Android runtime permission, live cadence display,
+  stop-to-auto-pause, step-to-resume, and GPS-only fallback on a real phone.
 - Elevation: prefer DEM correction for saved runs, but preserve GPS fallback and
   do not add API-key requirements.
 - AI/audience: preserve silent degradation when unconfigured, offline, timed out,
@@ -116,10 +131,18 @@ tracking or background-work change, give a concrete phone checklist instead of
 claiming full validation from unit tests alone:
 
 - Start a run and verify GPS lock, timer, distance, and pace.
+- On Android, grant physical activity permission and verify cadence appears
+  after a few steps.
 - Lock the phone and wait several minutes.
 - Confirm the notification remains and distance continues to update.
 - Unlock and confirm there is no large GPS jump.
 - Pause/resume and end the run.
+- With auto-pause enabled, stop moving for at least 5 seconds and verify the app
+  enters auto-paused even if GPS speed jitters; take several steps and verify it
+  resumes.
+- Repeat with physical activity permission denied. The app should hide cadence
+  as unavailable and still auto-pause from low GPS motion when speed/displacement
+  indicate the runner has stopped.
 - Verify history details, route, splits, city/weather, and any AI/audience
   behavior touched by the change.
 - For elevation work, compare a route with known climb against the saved result,

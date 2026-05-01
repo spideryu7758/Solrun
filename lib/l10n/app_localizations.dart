@@ -403,6 +403,12 @@ abstract class S {
   /// **'时长'**
   String get tracking_labelDuration;
 
+  /// No description provided for @tracking_labelCadence.
+  ///
+  /// In zh, this message translates to:
+  /// **'步频'**
+  String get tracking_labelCadence;
+
   /// No description provided for @tracking_labelCalories.
   ///
   /// In zh, this message translates to:

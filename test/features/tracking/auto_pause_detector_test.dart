@@ -96,6 +96,106 @@ void main() {
     });
   });
 
+  group('AutoPauseDetector 步频辅助', () {
+    test('有步频数据时停步 5 秒触发暂停，即使 GPS 速度漂移', () {
+      final t0 = DateTime(2026, 1, 1, 0, 0, 0);
+      AutoPauseEvent? lastEvent;
+      for (int i = 0; i <= 5; i++) {
+        lastEvent = detector.update(
+          0.6,
+          t0.add(Duration(seconds: i)),
+          cadenceSpm: 0,
+        );
+      }
+      expect(lastEvent, AutoPauseEvent.paused);
+      expect(detector.isPaused, true);
+    });
+
+    test('有步频数据时低速但仍在走动不暂停', () {
+      final t0 = DateTime(2026, 1, 1, 0, 0, 0);
+      for (int i = 0; i <= 6; i++) {
+        detector.update(0.1, t0.add(Duration(seconds: i)), cadenceSpm: 80);
+      }
+      expect(detector.isPaused, false);
+    });
+
+    test('自动暂停后步频恢复到 20 spm 以上才恢复', () {
+      final t0 = DateTime(2026, 1, 1, 0, 0, 0);
+      for (int i = 0; i <= 5; i++) {
+        detector.update(0.6, t0.add(Duration(seconds: i)), cadenceSpm: 0);
+      }
+      expect(detector.isPaused, true);
+
+      final driftEvent = detector.update(
+        0.8,
+        t0.add(const Duration(seconds: 8)),
+        cadenceSpm: 0,
+      );
+      expect(driftEvent, isNull);
+      expect(detector.isPaused, true);
+
+      final stepEvent = detector.update(
+        0.1,
+        t0.add(const Duration(seconds: 10)),
+        cadenceSpm: 30,
+      );
+      expect(stepEvent, AutoPauseEvent.resumed);
+      expect(detector.isPaused, false);
+    });
+  });
+
+  group('AutoPauseDetector GPS 位移辅助', () {
+    test('无步频时 GPS 速度漂移但近期位移很小也会暂停', () {
+      final t0 = DateTime(2026, 1, 1, 0, 0, 0);
+      AutoPauseEvent? lastEvent;
+      for (int i = 0; i <= 5; i++) {
+        lastEvent = detector.update(
+          0.5,
+          t0.add(Duration(seconds: i)),
+          recentDisplacementMeters: 2.0,
+          accuracyMeters: 8.0,
+        );
+      }
+      expect(lastEvent, AutoPauseEvent.paused);
+      expect(detector.isPaused, true);
+    });
+
+    test('无步频时 GPS 精度差则不使用小位移暂停判断', () {
+      final t0 = DateTime(2026, 1, 1, 0, 0, 0);
+      for (int i = 0; i <= 6; i++) {
+        detector.update(
+          0.5,
+          t0.add(Duration(seconds: i)),
+          recentDisplacementMeters: 2.0,
+          accuracyMeters: 50.0,
+        );
+      }
+      expect(detector.isPaused, false);
+    });
+
+    test('自动暂停后 GPS 位移恢复可触发恢复', () {
+      final t0 = DateTime(2026, 1, 1, 0, 0, 0);
+      for (int i = 0; i <= 5; i++) {
+        detector.update(
+          0.5,
+          t0.add(Duration(seconds: i)),
+          recentDisplacementMeters: 2.0,
+          accuracyMeters: 8.0,
+        );
+      }
+      expect(detector.isPaused, true);
+
+      final event = detector.update(
+        0.1,
+        t0.add(const Duration(seconds: 8)),
+        recentDisplacementMeters: 10.0,
+        accuracyMeters: 8.0,
+      );
+      expect(event, AutoPauseEvent.resumed);
+      expect(detector.isPaused, false);
+    });
+  });
+
   group('AutoPauseDetector 震荡', () {
     test('速度在阈值附近快速震荡不误触发', () {
       final t0 = DateTime(2026, 1, 1, 0, 0, 0);

@@ -1,20 +1,27 @@
 package com.runpure.run_pure
 
+import android.content.Context
 import android.content.ComponentName
 import android.content.ContentValues
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.media.MediaScannerConnection
 import android.net.Uri
 import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
 import android.provider.Settings
+import android.hardware.Sensor
+import android.hardware.SensorEvent
+import android.hardware.SensorEventListener
+import android.hardware.SensorManager
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.EventChannel
 import io.flutter.plugin.common.MethodChannel
 import java.io.File
 import java.io.FileInputStream
+import java.util.ArrayDeque
 
 class MainActivity : FlutterActivity() {
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
@@ -148,6 +155,19 @@ class MainActivity : FlutterActivity() {
                 }
             })
 
+        val stepSensorHandler = StepSensorStreamHandler(this)
+
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "com.runpure.run_pure/steps")
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "isAvailable" -> result.success(stepSensorHandler.isAvailable())
+                    else -> result.notImplemented()
+                }
+            }
+
+        EventChannel(flutterEngine.dartExecutor.binaryMessenger, "com.runpure.run_pure/step_stream")
+            .setStreamHandler(stepSensorHandler)
+
         // MediaScanner 回退方案
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "com.runpure.run_pure/media_scanner")
             .setMethodCallHandler { call, result ->
@@ -161,5 +181,87 @@ class MainActivity : FlutterActivity() {
                     result.notImplemented()
                 }
             }
+    }
+
+    private class StepSensorStreamHandler(
+        private val context: Context
+    ) : EventChannel.StreamHandler, SensorEventListener {
+        private val sensorManager =
+            context.getSystemService(Context.SENSOR_SERVICE) as SensorManager
+        private val stepDetector = sensorManager.getDefaultSensor(Sensor.TYPE_STEP_DETECTOR)
+        private var eventSink: EventChannel.EventSink? = null
+        private val stepTimes = ArrayDeque<Long>()
+        private var cumulativeSteps = 0
+
+        fun isAvailable(): Boolean {
+            if (stepDetector == null) return false
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q &&
+                context.checkSelfPermission(android.Manifest.permission.ACTIVITY_RECOGNITION)
+                    != PackageManager.PERMISSION_GRANTED
+            ) {
+                return false
+            }
+            return true
+        }
+
+        override fun onListen(arguments: Any?, events: EventChannel.EventSink?) {
+            eventSink = events
+            cumulativeSteps = 0
+            stepTimes.clear()
+            if (!isAvailable()) {
+                events?.success(mapOf(
+                    "available" to false,
+                    "cadenceSpm" to 0,
+                    "cumulativeSteps" to 0,
+                    "timestamp" to System.currentTimeMillis()
+                ))
+                return
+            }
+            val detector = stepDetector ?: return
+            sensorManager.registerListener(
+                this,
+                detector,
+                SensorManager.SENSOR_DELAY_NORMAL
+            )
+            events?.success(mapOf(
+                "available" to true,
+                "cadenceSpm" to 0,
+                "cumulativeSteps" to 0,
+                "timestamp" to System.currentTimeMillis()
+            ))
+        }
+
+        override fun onCancel(arguments: Any?) {
+            sensorManager.unregisterListener(this)
+            eventSink = null
+            stepTimes.clear()
+        }
+
+        override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
+
+        override fun onSensorChanged(event: SensorEvent?) {
+            if (event?.sensor?.type != Sensor.TYPE_STEP_DETECTOR) return
+            val now = System.currentTimeMillis()
+            cumulativeSteps += 1
+            stepTimes.addLast(now)
+            val cutoff = now - 20_000L
+            while (stepTimes.isNotEmpty() && stepTimes.first < cutoff) {
+                stepTimes.removeFirst()
+            }
+
+            val cadence = if (stepTimes.size >= 2) {
+                val durationMs = (stepTimes.last - stepTimes.first).coerceAtLeast(1L)
+                ((stepTimes.size - 1) * 60_000.0 / durationMs).toInt()
+            } else {
+                0
+            }
+
+            eventSink?.success(mapOf(
+                "available" to true,
+                "cadenceSpm" to cadence,
+                "cumulativeSteps" to cumulativeSteps,
+                "timestamp" to now
+            ))
+        }
     }
 }
