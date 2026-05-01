@@ -8,7 +8,7 @@ class AudienceConstants {
   /// LLM 调用超时（秒）—— 观众喊话不要求及时性，给大模型充足时间
   static const int llmTimeoutSeconds = 60;
 
-  /// LLM 生成最大 token 数（需兼容推理模型的 <think> 开销）
+  /// LLM 生成最大 token 数（需兼容推理模型的 `<think>` 开销）
   static const int maxLlmTokens = 1024;
 
   /// LLM 温度（创意度）

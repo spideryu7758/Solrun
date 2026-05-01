@@ -49,8 +49,9 @@ class TrackingState {
 
   /// 格式化配速（如 "5'42\""）
   String get paceDisplay {
-    if (currentPaceSecPerKm == null || currentPaceSecPerKm == 0)
+    if (currentPaceSecPerKm == null || currentPaceSecPerKm == 0) {
       return '--\'--"';
+    }
     final min = currentPaceSecPerKm! ~/ 60;
     final sec = currentPaceSecPerKm! % 60;
     return '$min\'${sec.toString().padLeft(2, '0')}"';

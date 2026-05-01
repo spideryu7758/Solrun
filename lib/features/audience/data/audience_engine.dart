@@ -56,9 +56,9 @@ class AudienceEngine {
     required AudienceShoutDao shoutDao,
     required AudienceFavoriteDao favoriteDao,
     required AudienceUnlockDao unlockDao,
-  })  : _shoutDao = shoutDao,
-        _favoriteDao = favoriteDao,
-        _unlockDao = unlockDao;
+  }) : _shoutDao = shoutDao,
+       _favoriteDao = favoriteDao,
+       _unlockDao = unlockDao;
 
   /// 生成一条观众喊话
   Future<ShoutResult?> generateShout({
@@ -110,10 +110,12 @@ class AudienceEngine {
 
       // 7. 调用 LLM
       final chatMessages = messages
-          .map((m) => ChatMessage(
-                role: m['role'] == 'system' ? ChatRole.system : ChatRole.user,
-                content: m['content'] ?? '',
-              ))
+          .map(
+            (m) => ChatMessage(
+              role: m['role'] == 'system' ? ChatRole.system : ChatRole.user,
+              content: m['content'] ?? '',
+            ),
+          )
           .toList();
 
       const config = LlmConfig(
@@ -159,11 +161,11 @@ class AudienceEngine {
     }
   }
 
-  /// 流式 LLM 调用 —— 实时剥离 <think> 块，思考结束后立即返回内容
+  /// 流式 LLM 调用 —— 实时剥离 `<think>` 块，思考结束后立即返回内容
   ///
   /// 相比 complete()，优势在于：
-  /// - <think> 阶段的 token 边收边丢，不等完整响应
-  /// - </think> 后的实际内容一拼完就返回，不等 finish_reason
+  /// - `<think>` 阶段的 token 边收边丢，不等完整响应
+  /// - `</think>` 后的实际内容一拼完就返回，不等 finish_reason
   /// - 429 限频自动重试一次
   Future<String> _callStream(
     LlmProvider llm,
@@ -220,7 +222,7 @@ class AudienceEngine {
     }
   }
 
-  /// 剥离推理模型的 <think>...</think> 思考块（用于非流式结果的兜底处理）
+  /// 剥离推理模型的 `<think>...</think>` 思考块（用于非流式结果的兜底处理）
   static String _stripThinkTags(String text) {
     final closed = RegExp(r'<think>[\s\S]*?</think>', caseSensitive: false);
     var result = text.replaceAll(closed, '');
@@ -269,15 +271,17 @@ class AudienceEngine {
     required String content,
     required TriggerContext triggerContext,
   }) async {
-    return _shoutDao.insertShout(AudienceShoutsCompanion.insert(
-      sessionId: sessionId,
-      audienceRole: role.name,
-      personality: personality.name,
-      triggerType: triggerType.name,
-      triggerKm: Value(triggerKm),
-      content: content,
-      triggerContext: triggerContext.formatForPrompt(),
-      createdAt: DateTime.now(),
-    ));
+    return _shoutDao.insertShout(
+      AudienceShoutsCompanion.insert(
+        sessionId: sessionId,
+        audienceRole: role.name,
+        personality: personality.name,
+        triggerType: triggerType.name,
+        triggerKm: Value(triggerKm),
+        content: content,
+        triggerContext: triggerContext.formatForPrompt(),
+        createdAt: DateTime.now(),
+      ),
+    );
   }
 }

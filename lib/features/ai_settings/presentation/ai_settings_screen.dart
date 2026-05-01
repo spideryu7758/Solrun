@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter/foundation.dart';
 
 import '../../../app/theme.dart';
 import '../../../l10n/app_localizations.dart';
@@ -60,10 +59,12 @@ class _AiSettingsScreenState extends ConsumerState<AiSettingsScreen> {
       if (!mounted || _selectedPreset != preset) return;
       setState(() {
         _apiKeyController.text = config.apiKey;
-        _baseUrlController.text =
-            config.baseUrl.isNotEmpty ? config.baseUrl : defaults.baseUrl;
-        _modelController.text =
-            config.model.isNotEmpty ? config.model : defaults.model;
+        _baseUrlController.text = config.baseUrl.isNotEmpty
+            ? config.baseUrl
+            : defaults.baseUrl;
+        _modelController.text = config.model.isNotEmpty
+            ? config.model
+            : defaults.model;
       });
     });
   }
@@ -81,9 +82,9 @@ class _AiSettingsScreenState extends ConsumerState<AiSettingsScreen> {
     ref.invalidate(llmConfigProvider);
 
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(S.of(context)!.aiSettings_saved)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(S.of(context)!.aiSettings_saved)));
     }
   }
 
@@ -112,14 +113,24 @@ class _AiSettingsScreenState extends ConsumerState<AiSettingsScreen> {
     try {
       final success = await provider.testConnection();
       debugPrint('[AiSettings] testConnection success result=$success');
-      if (mounted) setState(() { _testResult = success; _testError = null; });
+      if (mounted) {
+        setState(() {
+          _testResult = success;
+          _testError = null;
+        });
+      }
     } catch (e) {
       debugPrint(
         '[AiSettings] testConnection failed '
         'type=${e.runtimeType} '
         'message=$e',
       );
-      if (mounted) setState(() { _testResult = false; _testError = '$e'; });
+      if (mounted) {
+        setState(() {
+          _testResult = false;
+          _testError = '$e';
+        });
+      }
     } finally {
       debugPrint('[AiSettings] testConnection done');
       provider.dispose();
@@ -159,10 +170,15 @@ class _AiSettingsScreenState extends ConsumerState<AiSettingsScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(S.of(context)!.aiSettings_title, style: TextStyle(
-          fontFamily: 'BebasNeue', fontSize: 24, letterSpacing: 3,
-          color: Theme.of(context).textTheme.displaySmall?.color,
-        )),
+        title: Text(
+          S.of(context)!.aiSettings_title,
+          style: TextStyle(
+            fontFamily: 'BebasNeue',
+            fontSize: 24,
+            letterSpacing: 3,
+            color: Theme.of(context).textTheme.displaySmall?.color,
+          ),
+        ),
         actions: [
           IconButton(
             icon: const Icon(Icons.delete_outline),
@@ -219,11 +235,17 @@ class _AiSettingsScreenState extends ConsumerState<AiSettingsScreen> {
               style: ElevatedButton.styleFrom(
                 backgroundColor: context.rpAccent,
                 foregroundColor: const Color(0xFF0A0A0F),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
               ),
-              child: Text(S.of(context)!.aiSettings_save, style: const TextStyle(
-                fontWeight: FontWeight.w600, fontSize: 15,
-              )),
+              child: Text(
+                S.of(context)!.aiSettings_save,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 15,
+                ),
+              ),
             ),
           ),
           const SizedBox(height: 24),
@@ -236,10 +258,15 @@ class _AiSettingsScreenState extends ConsumerState<AiSettingsScreen> {
   }
 
   Widget _sectionHeader(String title) {
-    return Text(title, style: TextStyle(
-      fontSize: 12, color: context.rpMuted, letterSpacing: 1,
-      fontWeight: FontWeight.w600,
-    ));
+    return Text(
+      title,
+      style: TextStyle(
+        fontSize: 12,
+        color: context.rpMuted,
+        letterSpacing: 1,
+        fontWeight: FontWeight.w600,
+      ),
+    );
   }
 
   Widget _buildPresetSelector() {
@@ -280,7 +307,10 @@ class _AiSettingsScreenState extends ConsumerState<AiSettingsScreen> {
         hintText: S.of(context)!.aiSettings_apiKeyHint,
         prefixIcon: const Icon(Icons.key, size: 20),
         suffixIcon: IconButton(
-          icon: Icon(_obscureKey ? Icons.visibility_off : Icons.visibility, size: 20),
+          icon: Icon(
+            _obscureKey ? Icons.visibility_off : Icons.visibility,
+            size: 20,
+          ),
           onPressed: () => setState(() => _obscureKey = !_obscureKey),
         ),
         filled: true,
@@ -340,26 +370,32 @@ class _AiSettingsScreenState extends ConsumerState<AiSettingsScreen> {
           child: OutlinedButton.icon(
             onPressed: _testing ? null : _testConnection,
             icon: _testing
-                ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
                 : _testResult == null
-                    ? const Icon(Icons.wifi_tethering, size: 18)
-                    : Icon(
-                        _testResult! ? Icons.check_circle : Icons.error,
-                        size: 18,
-                        color: _testResult! ? Colors.green : context.rpDanger,
-                      ),
+                ? const Icon(Icons.wifi_tethering, size: 18)
+                : Icon(
+                    _testResult! ? Icons.check_circle : Icons.error,
+                    size: 18,
+                    color: _testResult! ? Colors.green : context.rpDanger,
+                  ),
             label: Text(
               _testing
                   ? S.of(context)!.aiSettings_testing
                   : _testResult == null
-                      ? S.of(context)!.aiSettings_testConnection
-                      : _testResult!
-                          ? S.of(context)!.aiSettings_testSuccess
-                          : S.of(context)!.aiSettings_testFail,
+                  ? S.of(context)!.aiSettings_testConnection
+                  : _testResult!
+                  ? S.of(context)!.aiSettings_testSuccess
+                  : S.of(context)!.aiSettings_testFail,
               style: TextStyle(fontSize: 14, color: context.rpText),
             ),
             style: OutlinedButton.styleFrom(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
               side: BorderSide(color: context.rpBorder),
             ),
           ),
@@ -373,11 +409,17 @@ class _AiSettingsScreenState extends ConsumerState<AiSettingsScreen> {
               decoration: BoxDecoration(
                 color: context.rpDanger.withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: context.rpDanger.withValues(alpha: 0.2)),
+                border: Border.all(
+                  color: context.rpDanger.withValues(alpha: 0.2),
+                ),
               ),
               child: Text(
                 _testError!,
-                style: TextStyle(fontSize: 12, color: context.rpDanger, height: 1.4),
+                style: TextStyle(
+                  fontSize: 12,
+                  color: context.rpDanger,
+                  height: 1.4,
+                ),
               ),
             ),
           ),
@@ -396,9 +438,14 @@ class _AiSettingsScreenState extends ConsumerState<AiSettingsScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(S.of(context)!.aiSettings_helpTitle, style: TextStyle(
-            fontSize: 13, color: context.rpText, fontWeight: FontWeight.w600,
-          )),
+          Text(
+            S.of(context)!.aiSettings_helpTitle,
+            style: TextStyle(
+              fontSize: 13,
+              color: context.rpText,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
           const SizedBox(height: 8),
           _helpLine(S.of(context)!.aiSettings_help1),
           _helpLine(S.of(context)!.aiSettings_help2),
@@ -416,9 +463,16 @@ class _AiSettingsScreenState extends ConsumerState<AiSettingsScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text('· ', style: TextStyle(color: context.rpMuted, fontSize: 13)),
-          Expanded(child: Text(text, style: TextStyle(
-            fontSize: 12, color: context.rpMuted, height: 1.4,
-          ))),
+          Expanded(
+            child: Text(
+              text,
+              style: TextStyle(
+                fontSize: 12,
+                color: context.rpMuted,
+                height: 1.4,
+              ),
+            ),
+          ),
         ],
       ),
     );

@@ -6,11 +6,11 @@ import 'personalities.dart';
 ///
 /// 代号用于 name 属性存入数据库
 enum MoodState {
-  motivate,  // 🔥 激励我
-  comfort,   // 🫂 安慰我
-  provoke,   // 😈 刺激我
-  amuse,     // 😎 逗我笑
-  focus,     // 🎯 专注跑
+  motivate, // 🔥 激励我
+  comfort, // 🫂 安慰我
+  provoke, // 😈 刺激我
+  amuse, // 😎 逗我笑
+  focus, // 🎯 专注跑
 }
 
 extension MoodStateMeta on MoodState {
@@ -47,7 +47,7 @@ extension MoodStateMeta on MoodState {
   }
 
   /// 国际化key
-  String get arKeyName => 'audience_mood_${name}';
+  String get arKeyName => 'audience_mood_$name';
 
   /// prompt 中的倾向提示文本（设计文档 6.3 节）
   String get promptHint {
@@ -92,8 +92,7 @@ extension MoodStateMeta on MoodState {
   }
 
   /// 根据语言获取 prompt 提示
-  String promptHintFor(String lang) =>
-      lang == 'en' ? promptHintEn : promptHint;
+  String promptHintFor(String lang) => lang == 'en' ? promptHintEn : promptHint;
 
   // ── 权重矩阵（设计文档 3.2 节）──
 
@@ -151,7 +150,8 @@ extension MoodStateMeta on MoodState {
   };
 
   /// 人格权重
-  static const Map<Personality, Map<MoodState, double>> _personalityWeightMatrix = {
+  static const Map<Personality, Map<MoodState, double>>
+  _personalityWeightMatrix = {
     Personality.hypeCoach: {
       MoodState.motivate: 2.0,
       MoodState.comfort: 1.0,

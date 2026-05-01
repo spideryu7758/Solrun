@@ -1078,7 +1078,7 @@ abstract class S {
   /// No description provided for @settings_autoPauseDesc.
   ///
   /// In zh, this message translates to:
-  /// **'速度 < 1.0 km/h 持续 5 秒自动暂停'**
+  /// **'停步或低速持续 5 秒自动暂停'**
   String get settings_autoPauseDesc;
 
   /// No description provided for @settings_ttsSection.

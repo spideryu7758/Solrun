@@ -33,8 +33,8 @@ class WeatherService {
       client.connectionTimeout = const Duration(seconds: 5);
       final request = await client.getUrl(url);
       final response = await request.close().timeout(
-            const Duration(seconds: 5),
-          );
+        const Duration(seconds: 5),
+      );
 
       if (response.statusCode != 200) {
         return null;
@@ -142,10 +142,12 @@ class WeatherResult {
       lang == 'en' ? weatherDescEn : weatherDescZh;
 
   /// 是否有降水（雨/雪/冰雹）
-  bool get isRainy => weatherCode >= 51 && weatherCode <= 67 ||
+  bool get isRainy =>
+      weatherCode >= 51 && weatherCode <= 67 ||
       weatherCode >= 80 && weatherCode <= 82;
 
-  bool get isSnowy => weatherCode >= 71 && weatherCode <= 77 ||
+  bool get isSnowy =>
+      weatherCode >= 71 && weatherCode <= 77 ||
       weatherCode >= 85 && weatherCode <= 86;
 
   bool get isThunderstorm => weatherCode >= 95;
@@ -178,21 +180,23 @@ class WeatherResult {
     final isEn = lang == 'en';
     final parts = <String>[];
 
-    parts.add(isEn
-        ? 'Weather: ${weatherDescEn}'
-        : '天气：$weatherDescZh');
+    parts.add(isEn ? 'Weather: $weatherDescEn' : '天气：$weatherDescZh');
 
     if (temperature != null) {
-      parts.add(isEn
-          ? 'Temperature: ${temperature!.round()}°C'
-          : '气温：${temperature!.round()}°C');
+      parts.add(
+        isEn
+            ? 'Temperature: ${temperature!.round()}°C'
+            : '气温：${temperature!.round()}°C',
+      );
     }
 
     final wd = isEn ? windDescEn : windDescZh;
     if (wd.isNotEmpty && windSpeedKmh != null) {
-      parts.add(isEn
-          ? 'Wind: $wd (${windSpeedKmh!.round()} km/h)'
-          : '风力：$wd（${windSpeedKmh!.round()} km/h）');
+      parts.add(
+        isEn
+            ? 'Wind: $wd (${windSpeedKmh!.round()} km/h)'
+            : '风力：$wd（${windSpeedKmh!.round()} km/h）',
+      );
     }
 
     return parts.join(isEn ? ', ' : '，');

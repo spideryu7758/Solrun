@@ -89,6 +89,51 @@ void main() {
       expect(calculator.totalGainMeters, 0);
     });
 
+    test('2 点短平台噪声不累计为爬升', () {
+      final alts = [100, 100, 100, 108, 108, 100, 100];
+      for (final a in alts) {
+        calculator.addAltitude(a.toDouble());
+      }
+      calculator.finish();
+      expect(calculator.totalGainMeters, 0);
+    });
+
+    test('3 点阶梯短平台噪声不累计为爬升', () {
+      final alts = [100, 100, 100, 104, 108, 108, 100, 100];
+      for (final a in alts) {
+        calculator.addAltitude(a.toDouble());
+      }
+      calculator.finish();
+      expect(calculator.totalGainMeters, 0);
+    });
+
+    test('单步上升后结束不累计为爬升', () {
+      final alts = [100, 100, 100, 108, 108];
+      for (final a in alts) {
+        calculator.addAltitude(a.toDouble());
+      }
+      calculator.finish();
+      expect(calculator.totalGainMeters, 0);
+    });
+
+    test('短真实上坡仍可识别', () {
+      final alts = [100, 103, 106, 109, 112];
+      for (final a in alts) {
+        calculator.addAltitude(a.toDouble());
+      }
+      calculator.finish();
+      expect(calculator.totalGainMeters, greaterThanOrEqualTo(5));
+    });
+
+    test('刚好 5m 且 2 个上升滤波步的短上坡会累计', () {
+      final alts = [100, 100, 100, 102.5, 105, 105];
+      for (final a in alts) {
+        calculator.addAltitude(a.toDouble());
+      }
+      calculator.finish();
+      expect(calculator.totalGainMeters, 5);
+    });
+
     test('明显垂直跳变被过滤', () {
       final alts = [
         100,

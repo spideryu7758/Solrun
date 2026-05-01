@@ -6,15 +6,15 @@ import '../../../l10n/app_localizations.dart';
 /// 代号用于 name 属性存入数据库
 enum AudienceRole {
   /// 初始解锁角色
-  screamingFan,  // 📣 尖叫粉
-  dataNerd,       // 📊 数据狂人
-  familyCrew,     // ❤️ 亲友后援会
-  zenViewer,      // 🧘 佛系观赛组
+  screamingFan, // 📣 尖叫粉
+  dataNerd, // 📊 数据狂人
+  familyCrew, // ❤️ 亲友后援会
+  zenViewer, // 🧘 佛系观赛组
 
   // 需解锁角色
-  gambler,   // 🎰 赌徒 — 累计 10 次跑步解锁
-  nitpicker,  // 🔬 显微镜侠 — 累计 20 次跑步解锁
-  rivalFan,   // 🥷 影子对手团 — 累计 30 次跑步解锁
+  gambler, // 🎰 赌徒 — 累计 10 次跑步解锁
+  nitpicker, // 🔬 显微镜侠 — 累计 20 次跑步解锁
+  rivalFan // 🥷 影子对手团 — 累计 30 次跑步解锁
   ;
 
   /// 从数据库存储的字符串反序列化为枚举
@@ -166,7 +166,7 @@ extension AudienceRoleMeta on AudienceRole {
   }
 
   /// 国际化 key（用于 S.of(context)!.xxx 访问）
-  String get arKeyName => 'audience_role_${name}';
+  String get arKeyName => 'audience_role_$name';
 
   /// 解锁阈值（累计跑步次数，0 = 初始解锁）
   int get unlockThreshold {
