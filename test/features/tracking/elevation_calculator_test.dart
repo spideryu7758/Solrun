@@ -30,7 +30,7 @@ void main() {
         calculator.addAltitude(100.0 + i);
       }
       calculator.finish();
-      // 中位数滤波 + 阈值会导致首尾几个点丢失，但总爬升应接近 19m
+      // 中位数滤波 + 保守阈值会导致首尾几个点丢失，但仍应识别持续爬升
       expect(calculator.totalGainMeters, greaterThan(10));
       expect(calculator.totalGainMeters, lessThan(25));
     });
@@ -45,7 +45,22 @@ void main() {
 
     test('上下坡交替只累计上坡部分', () {
       // 100 → 110（+10）→ 105（-5）→ 115（+10）
-      final alts = [100, 102, 104, 106, 108, 110, 108, 106, 105, 107, 109, 111, 113, 115];
+      final alts = [
+        100,
+        102,
+        104,
+        106,
+        108,
+        110,
+        108,
+        106,
+        105,
+        107,
+        109,
+        111,
+        113,
+        115,
+      ];
       for (final a in alts) {
         calculator.addAltitude(a.toDouble());
       }
@@ -54,10 +69,10 @@ void main() {
       expect(calculator.totalGainMeters, greaterThan(5));
     });
 
-    test('小于 2m 的微小波动被过滤', () {
-      // 100 → 101 → 100 → 101 反复，每次波动 1m < 阈值 2m
+    test('小于 5m 的微小波动被过滤', () {
+      // 100 → 104 → 100 → 104 反复，每次波动 < 保守阈值
       for (int i = 0; i < 20; i++) {
-        calculator.addAltitude(100.0 + (i.isEven ? 0 : 1));
+        calculator.addAltitude(100.0 + (i.isEven ? 0 : 4));
       }
       calculator.finish();
       expect(calculator.totalGainMeters, 0);
@@ -72,6 +87,41 @@ void main() {
       calculator.finish();
       // 中位数滤波应消除 150m 的尖刺，总爬升应为 0
       expect(calculator.totalGainMeters, 0);
+    });
+
+    test('明显垂直跳变被过滤', () {
+      final alts = [
+        100,
+        100,
+        100,
+        100,
+        100,
+        100,
+        100,
+        140,
+        141,
+        142,
+        143,
+        144,
+        145,
+      ];
+      for (final a in alts) {
+        calculator.addAltitude(a.toDouble());
+      }
+      calculator.finish();
+      expect(calculator.totalGainMeters, 0);
+    });
+
+    test('静态 calculateGain 与实例计算一致', () {
+      final alts = [100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110];
+      final direct = ElevationCalculator.calculateGain(
+        alts.map((a) => a.toDouble()),
+      );
+      for (final a in alts) {
+        calculator.addAltitude(a.toDouble());
+      }
+      calculator.finish();
+      expect(direct, calculator.totalGainMeters);
     });
 
     test('reset 清除所有状态', () {

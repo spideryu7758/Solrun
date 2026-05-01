@@ -117,7 +117,8 @@ class TrackingNotifier extends StateNotifier<TrackingState> {
     final prefs = await SharedPreferences.getInstance();
     if (!(prefs.getBool('battery_opt_requested') ?? false)) {
       try {
-        final isIgnoring = await FlutterForegroundTask.isIgnoringBatteryOptimizations;
+        final isIgnoring =
+            await FlutterForegroundTask.isIgnoringBatteryOptimizations;
         if (!isIgnoring) {
           await FlutterForegroundTask.requestIgnoreBatteryOptimization();
         }
@@ -135,14 +136,16 @@ class TrackingNotifier extends StateNotifier<TrackingState> {
     _elevationCalculator.reset();
 
     // 立即创建一条 incomplete 记录（崩溃恢复用）
-    _sessionId = await _runSessionDao.insertSession(RunSessionsCompanion.insert(
-      startTime: _startTime!,
-      durationSeconds: 0,
-      distanceMeters: 0,
-      avgPaceSecPerKm: 0,
-      bestPaceSecPerKm: 0,
-      autoName: Value(_generateAutoName(_startTime!)),
-    ));
+    _sessionId = await _runSessionDao.insertSession(
+      RunSessionsCompanion.insert(
+        startTime: _startTime!,
+        durationSeconds: 0,
+        distanceMeters: 0,
+        avgPaceSecPerKm: 0,
+        bestPaceSecPerKm: 0,
+        autoName: Value(_generateAutoName(_startTime!)),
+      ),
+    );
 
     // 启动 GPS 流
     await _locationService.startTracking();
@@ -178,7 +181,9 @@ class TrackingNotifier extends StateNotifier<TrackingState> {
         return;
       } else if (event == AutoPauseEvent.resumed) {
         if (_pauseStartTime != null) {
-          _pausedDurationSec += DateTime.now().difference(_pauseStartTime!).inSeconds;
+          _pausedDurationSec += DateTime.now()
+              .difference(_pauseStartTime!)
+              .inSeconds;
           _pauseStartTime = null;
         }
         state = state.copyWith(status: TrackingStatus.running);
@@ -202,7 +207,9 @@ class TrackingNotifier extends StateNotifier<TrackingState> {
     _persistence.appendPointToLog(point, _orderIndex);
 
     // 计算卡路里：体重(kg) × 距离(km) × 1.036
-    final calories = (_userWeightKg * _paceCalculator.totalDistanceMeters / 1000 * 1.036).round();
+    final calories =
+        (_userWeightKg * _paceCalculator.totalDistanceMeters / 1000 * 1.036)
+            .round();
 
     // 更新状态
     state = state.copyWith(
@@ -265,7 +272,9 @@ class TrackingNotifier extends StateNotifier<TrackingState> {
     }
 
     if (_pauseStartTime != null) {
-      _pausedDurationSec += DateTime.now().difference(_pauseStartTime!).inSeconds;
+      _pausedDurationSec += DateTime.now()
+          .difference(_pauseStartTime!)
+          .inSeconds;
       _pauseStartTime = null;
     }
     _autoPauseDetector.reset();
@@ -305,19 +314,24 @@ class TrackingNotifier extends StateNotifier<TrackingState> {
         ? (state.durationSeconds * 1000 / state.distanceMeters).round()
         : 0;
     final bestPace = _paceCalculator.splits.isNotEmpty
-        ? _paceCalculator.splits.map((s) => s.paceSecPerKm).reduce((a, b) => a < b ? a : b)
+        ? _paceCalculator.splits
+              .map((s) => s.paceSecPerKm)
+              .reduce((a, b) => a < b ? a : b)
         : 0;
 
     // 获取语言设置
-    final locale = (await SharedPreferences.getInstance())
-            .getString('locale') ??
-        'zh';
+    final locale =
+        (await SharedPreferences.getInstance()).getString('locale') ?? 'zh';
     final lang = locale.startsWith('en') ? 'en' : 'zh';
 
     // 获取城市和天气信息
     final geoWeather = await _finalizer.fetchCityAndWeather(
       sessionId: _sessionId!,
       lang: lang,
+    );
+    final elevationGainMeters = await _finalizer.calculateElevationGain(
+      sessionId: _sessionId!,
+      gpsFallbackMeters: _elevationCalculator.totalGainMeters,
     );
 
     // 持久化：更新 RunSession + 写入分公里配速
@@ -331,8 +345,12 @@ class TrackingNotifier extends StateNotifier<TrackingState> {
         avgPace: avgPace,
         bestPace: bestPace,
         caloriesKcal: state.caloriesKcal,
-        elevationGainMeters: _elevationCalculator.totalGainMeters,
-        autoName: _generateAutoName(_startTime!, city: geoWeather.city, lang: lang),
+        elevationGainMeters: elevationGainMeters,
+        autoName: _generateAutoName(
+          _startTime!,
+          city: geoWeather.city,
+          lang: lang,
+        ),
         city: geoWeather.city,
         weather: geoWeather.weather,
         splits: _paceCalculator.splits,
@@ -415,27 +433,27 @@ class TrackingNotifier extends StateNotifier<TrackingState> {
 
     final period = isEn
         ? (hour >= 5 && hour < 9
-            ? 'Dawn Run'
-            : hour >= 9 && hour < 12
-                ? 'Morning Run'
-                : hour >= 12 && hour < 14
-                    ? 'Noon Run'
-                    : hour >= 14 && hour < 17
-                        ? 'Afternoon Run'
-                        : hour >= 17 && hour < 19
-                            ? 'Evening Run'
-                            : 'Night Run')
+              ? 'Dawn Run'
+              : hour >= 9 && hour < 12
+              ? 'Morning Run'
+              : hour >= 12 && hour < 14
+              ? 'Noon Run'
+              : hour >= 14 && hour < 17
+              ? 'Afternoon Run'
+              : hour >= 17 && hour < 19
+              ? 'Evening Run'
+              : 'Night Run')
         : (hour >= 5 && hour < 9
-            ? '清晨跑'
-            : hour >= 9 && hour < 12
-                ? '上午跑'
-                : hour >= 12 && hour < 14
-                    ? '午间跑'
-                    : hour >= 14 && hour < 17
-                        ? '下午跑'
-                        : hour >= 17 && hour < 19
-                            ? '傍晚跑'
-                            : '夜跑');
+              ? '清晨跑'
+              : hour >= 9 && hour < 12
+              ? '上午跑'
+              : hour >= 12 && hour < 14
+              ? '午间跑'
+              : hour >= 14 && hour < 17
+              ? '下午跑'
+              : hour >= 17 && hour < 19
+              ? '傍晚跑'
+              : '夜跑');
 
     if (city != null && city.isNotEmpty) {
       return '$city · $period';

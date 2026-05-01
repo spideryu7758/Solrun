@@ -6,6 +6,7 @@ import '../../../data/daos/audience_unlock_dao.dart';
 import '../../../data/daos/route_point_dao.dart';
 import '../../../data/daos/run_session_dao.dart';
 import '../../../shared/services/geocoding_service.dart';
+import '../../../shared/services/elevation_service.dart';
 import '../../../shared/services/weather_service.dart';
 import '../../audience/domain/unlock_checker.dart';
 import 'achievement_checker.dart';
@@ -33,10 +34,10 @@ class RunFinalizer {
     required RoutePointDao routePointDao,
     required AchievementDao achievementDao,
     required AudienceUnlockDao audienceUnlockDao,
-  })  : _runSessionDao = runSessionDao,
-        _routePointDao = routePointDao,
-        _achievementDao = achievementDao,
-        _audienceUnlockDao = audienceUnlockDao;
+  }) : _runSessionDao = runSessionDao,
+       _routePointDao = routePointDao,
+       _achievementDao = achievementDao,
+       _audienceUnlockDao = audienceUnlockDao;
 
   /// 获取城市和天气信息（用首个轨迹点的坐标）
   Future<FinalizeResult> fetchCityAndWeather({
@@ -50,8 +51,7 @@ class RunFinalizer {
     if (point != null) {
       // 并行获取城市和天气
       final results = await Future.wait([
-        GeocodingService.getCity(
-            point.latitude, point.longitude, lang: lang),
+        GeocodingService.getCity(point.latitude, point.longitude, lang: lang),
         WeatherService.fetch(point.latitude, point.longitude),
       ]);
       city = results[0] as String?;
@@ -66,6 +66,17 @@ class RunFinalizer {
     }
 
     return FinalizeResult(city: city, weather: weatherStr);
+  }
+
+  /// 优先使用在线 DEM 重算累计爬升，失败时回退 GPS 海拔估算。
+  Future<double> calculateElevationGain({
+    required int sessionId,
+    required double gpsFallbackMeters,
+  }) async {
+    final points = await _routePointDao.getPointsBySession(sessionId);
+    final demGain = await ElevationService.fetchElevationGain(points);
+    if (demGain != null) return demGain;
+    return gpsFallbackMeters;
   }
 
   /// 检测成就

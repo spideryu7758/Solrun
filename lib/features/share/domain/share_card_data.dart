@@ -1,8 +1,7 @@
-import 'dart:collection';
-
 import 'package:flutter/painting.dart';
 
 import '../../../data/database.dart';
+import '../../tracking/domain/elevation_calculator.dart';
 import '../../../shared/utils/pace_color_mapper.dart';
 
 /// 分享卡片不可变数据（在打开分享页时一次性预计算）
@@ -101,52 +100,9 @@ class ShareCardData {
   }
 
   /// 从轨迹点重新计算累计爬升
-  /// 复用 ElevationCalculator 的算法：中位数滤波(窗口5) + 2m 阈值 + 趋势确认
+  /// 复用 ElevationCalculator 的保守算法，避免分享页与结果页口径分叉。
   static double _recalculateElevation(List<RoutePoint> points) {
-    const windowSize = 5;
-    const minGainThreshold = 2.0;
-
-    final rawWindow = Queue<double>();
-    double? lastConfirmedAlt;
-    double pendingGain = 0;
-    double totalGain = 0;
-
-    for (final p in points) {
-      if (p.altitude == null) continue;
-
-      rawWindow.addLast(p.altitude!);
-      if (rawWindow.length > windowSize) rawWindow.removeFirst();
-      if (rawWindow.length < windowSize) continue;
-
-      // 中位数滤波
-      final sorted = rawWindow.toList()..sort();
-      final median = sorted[windowSize ~/ 2];
-
-      if (lastConfirmedAlt == null) {
-        lastConfirmedAlt = median;
-        continue;
-      }
-
-      final diff = median - lastConfirmedAlt;
-
-      if (diff > 0) {
-        pendingGain += diff;
-      } else if (diff < 0) {
-        if (pendingGain >= minGainThreshold) {
-          totalGain += pendingGain;
-        }
-        pendingGain = 0;
-      }
-
-      lastConfirmedAlt = median;
-    }
-
-    // 把最后一段待确认的爬升也算上
-    if (pendingGain >= minGainThreshold) {
-      totalGain += pendingGain;
-    }
-
-    return totalGain;
+    return ElevationCalculator.calculateGain(points.map((p) => p.altitude));
   }
 
   /// 均匀降采样，保留首尾点
@@ -194,8 +150,9 @@ class ShareCardData {
   String get caloriesFormatted => '${session.caloriesKcal} kcal';
 
   /// 海拔（优先使用重新计算的值，回退到数据库值）
-  double get elevationGain =>
-      recalculatedElevationGain > 0 ? recalculatedElevationGain : session.elevationGainMeters;
+  double get elevationGain => recalculatedElevationGain > 0
+      ? recalculatedElevationGain
+      : session.elevationGainMeters;
 
   String get elevationFormatted => '${elevationGain.toStringAsFixed(0)} m';
 }
