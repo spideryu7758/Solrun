@@ -1,7 +1,7 @@
 name: run_pure
 description: "Solrun - 纯本地、零广告跑步记录 App"
 publish_to: 'none'
-version: 1.0.1+2
+version: 1.0.5+5
 
 environment:
   sdk: ^3.11.4

@@ -38,7 +38,7 @@ class SettingsScreen extends ConsumerWidget {
           // 版本信息
           Center(
             child: Text(
-              'Solrun v1.0.0   Powered by Haizhong',
+              'Solrun v1.0.5   Powered by Haizhong',
               style: TextStyle(fontSize: 12, color: context.rpMuted),
             ),
           ),
