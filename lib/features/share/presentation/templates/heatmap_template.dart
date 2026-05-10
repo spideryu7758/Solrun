@@ -33,9 +33,7 @@ class HeatmapTemplate extends StatelessWidget {
     return Container(
       width: cardWidth,
       height: cardHeight,
-      decoration: BoxDecoration(
-        color: SolrunColors.darkBg,
-      ),
+      decoration: BoxDecoration(color: SolrunColors.darkBg),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -56,7 +54,11 @@ class HeatmapTemplate extends StatelessWidget {
             // 配速图紧跟轨迹下方
             if (config.showPaceChart && data.splits.isNotEmpty) ...[
               const SizedBox(height: 10),
-              SplitPaceChart(splits: data.splits, height: 55),
+              SplitPaceChart(
+                splits: data.splits,
+                height: 55,
+                dataEntertainment: config.showDataEntertainment,
+              ),
             ],
 
             // 海拔剖面
@@ -97,7 +99,11 @@ class HeatmapTemplate extends StatelessWidget {
               ? FileImage(File(data.avatarPath!))
               : null,
           child: data.avatarPath == null
-              ? const Icon(Icons.person, size: 16, color: SolrunColors.darkMuted)
+              ? const Icon(
+                  Icons.person,
+                  size: 16,
+                  color: SolrunColors.darkMuted,
+                )
               : null,
         ),
         const SizedBox(width: 8),
@@ -222,6 +228,9 @@ class HeatmapTemplate extends StatelessWidget {
   /// 紧凑单行数据：距离 | 配速 | 时长 | 卡路里
   Widget _buildCompactDataRow(BuildContext context) {
     final s = S.of(context)!;
+    final pace = config.showDataEntertainment
+        ? data.entertainmentPaceFormatted
+        : data.paceFormatted;
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
       decoration: BoxDecoration(
@@ -232,7 +241,7 @@ class HeatmapTemplate extends StatelessWidget {
         children: [
           _compactDataItem(s.share_distance, data.distanceKm, 'km'),
           _verticalDivider(),
-          _compactDataItem(s.share_pace, data.paceFormatted, null),
+          _compactDataItem(s.share_pace, pace, null),
           _verticalDivider(),
           _compactDataItem(s.share_duration, data.durationFormatted, null),
           _verticalDivider(),
@@ -295,10 +304,6 @@ class HeatmapTemplate extends StatelessWidget {
 
   /// 竖分割线
   Widget _verticalDivider() {
-    return Container(
-      width: 1,
-      height: 24,
-      color: SolrunColors.darkBorder,
-    );
+    return Container(width: 1, height: 24, color: SolrunColors.darkBorder);
   }
 }

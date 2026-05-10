@@ -6,6 +6,7 @@ import '../../../../app/theme.dart';
 import '../../../../l10n/app_localizations.dart';
 import '../../domain/share_card_config.dart';
 import '../../domain/share_card_data.dart';
+import '../painters/heatmap_route_painter.dart';
 import '../widgets/map_trajectory_view.dart';
 import '../widgets/watermark_footer.dart';
 
@@ -32,15 +33,15 @@ class MapPhotoTemplate extends StatelessWidget {
     return Container(
       width: cardWidth,
       height: cardHeight,
-      decoration: BoxDecoration(
-        color: SolrunColors.darkBg,
-      ),
+      decoration: BoxDecoration(color: SolrunColors.darkBg),
       clipBehavior: Clip.hardEdge,
       child: Stack(
         children: [
           // 1. 地图背景（不可交互）
           Positioned.fill(
-            child: MapTrajectoryView(data: data, config: config),
+            child: config.showMapTiles
+                ? MapTrajectoryView(data: data, config: config)
+                : _buildCanvasTrajectory(data, config),
           ),
 
           // 2. 顶部渐变遮罩（提升文字可读性）
@@ -83,13 +84,9 @@ class MapPhotoTemplate extends StatelessWidget {
             ),
           ),
 
-          // 4. 顶部头信息（始终显示头像+昵称）
-          Positioned(
-            top: 16,
-            left: 20,
-            right: 20,
-            child: _buildHeader(data),
-          ),
+          // 4. 顶部头信息
+          if (config.showHeader)
+            Positioned(top: 16, left: 20, right: 20, child: _buildHeader(data)),
 
           // 5. 底部数据叠加层
           Positioned(
@@ -100,6 +97,21 @@ class MapPhotoTemplate extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildCanvasTrajectory(ShareCardData data, ShareCardConfig config) {
+    return Container(
+      color: SolrunColors.darkCard,
+      child: data.points.length >= 2
+          ? CustomPaint(
+              painter: HeatmapRoutePainter(
+                points: data.points,
+                mergedSegments: config.showHeatmap ? data.mergedSegments : null,
+              ),
+              size: Size.infinite,
+            )
+          : const SizedBox.shrink(),
     );
   }
 
@@ -146,8 +158,15 @@ class MapPhotoTemplate extends StatelessWidget {
   }
 
   /// 构建底部数据层
-  Widget _buildBottomData(BuildContext context, ShareCardData data, ShareCardConfig config) {
+  Widget _buildBottomData(
+    BuildContext context,
+    ShareCardData data,
+    ShareCardConfig config,
+  ) {
     final s = S.of(context)!;
+    final pace = config.showDataEntertainment
+        ? data.entertainmentPaceFormatted
+        : data.paceFormatted;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
@@ -165,8 +184,14 @@ class MapPhotoTemplate extends StatelessWidget {
                 height: 1.0,
                 decoration: TextDecoration.none,
                 shadows: [
-                  Shadow(color: Colors.black.withValues(alpha: 0.8), blurRadius: 8),
-                  Shadow(color: Colors.black.withValues(alpha: 0.5), blurRadius: 20),
+                  Shadow(
+                    color: Colors.black.withValues(alpha: 0.8),
+                    blurRadius: 8,
+                  ),
+                  Shadow(
+                    color: Colors.black.withValues(alpha: 0.5),
+                    blurRadius: 20,
+                  ),
                 ],
               ),
             ),
@@ -181,7 +206,10 @@ class MapPhotoTemplate extends StatelessWidget {
                   color: Colors.white70,
                   decoration: TextDecoration.none,
                   shadows: [
-                    Shadow(color: Colors.black.withValues(alpha: 0.6), blurRadius: 6),
+                    Shadow(
+                      color: Colors.black.withValues(alpha: 0.6),
+                      blurRadius: 6,
+                    ),
                   ],
                 ),
               ),
@@ -193,7 +221,7 @@ class MapPhotoTemplate extends StatelessWidget {
         // 指标行：配速 | 时长 | 卡路里
         Row(
           children: [
-            _buildMetric(s.share_pace, data.paceFormatted),
+            _buildMetric(s.share_pace, pace),
             _buildDivider(),
             _buildMetric(s.share_duration, data.durationFormatted),
             _buildDivider(),
@@ -245,7 +273,10 @@ class MapPhotoTemplate extends StatelessWidget {
               color: SolrunColors.accent,
               decoration: TextDecoration.none,
               shadows: [
-                Shadow(color: Colors.black.withValues(alpha: 0.8), blurRadius: 6),
+                Shadow(
+                  color: Colors.black.withValues(alpha: 0.8),
+                  blurRadius: 6,
+                ),
               ],
             ),
           ),

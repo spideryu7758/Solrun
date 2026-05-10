@@ -122,10 +122,29 @@ class ShareCardData {
   String get distanceKm => (session.distanceMeters / 1000).toStringAsFixed(2);
 
   /// 格式化的配速
-  String get paceFormatted {
-    final min = session.avgPaceSecPerKm ~/ 60;
-    final sec = session.avgPaceSecPerKm % 60;
+  String get paceFormatted => formatPaceSeconds(session.avgPaceSecPerKm);
+
+  /// 数据娱乐化配速：分钟永久显示为 5，超出的分钟折算进秒数。
+  String get entertainmentPaceFormatted =>
+      formatPaceSeconds(session.avgPaceSecPerKm, dataEntertainment: true);
+
+  static String formatPaceSeconds(
+    int paceSecPerKm, {
+    bool dataEntertainment = false,
+  }) {
+    final min = dataEntertainment ? 5 : paceSecPerKm ~/ 60;
+    final sec = dataEntertainment
+        ? entertainmentPaceExtraSeconds(paceSecPerKm)
+        : paceSecPerKm % 60;
     return '$min\'${sec.toString().padLeft(2, '0')}"';
+  }
+
+  static int entertainmentPaceExtraSeconds(int paceSecPerKm) {
+    return (paceSecPerKm - 5 * 60).clamp(0, 1 << 31);
+  }
+
+  static int entertainmentPaceDisplaySeconds(int paceSecPerKm) {
+    return 5 * 60 + entertainmentPaceExtraSeconds(paceSecPerKm);
   }
 
   /// 格式化的时长

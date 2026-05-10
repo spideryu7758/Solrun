@@ -1175,6 +1175,9 @@ class SZh extends S {
   String get share_toggleHeader => '头部信息';
 
   @override
+  String get share_toggleDataEntertainment => '数据娱乐化';
+
+  @override
   String share_optionNotSupported(String label, String template) {
     return '$label 无法在$template风格中展示';
   }

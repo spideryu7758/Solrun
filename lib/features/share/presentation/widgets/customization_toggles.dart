@@ -14,6 +14,7 @@ class CustomizationToggles extends StatelessWidget {
   final VoidCallback onToggleElevation;
   final VoidCallback onToggleDataGrid;
   final VoidCallback onToggleHeader;
+  final VoidCallback onToggleDataEntertainment;
 
   const CustomizationToggles({
     super.key,
@@ -24,6 +25,7 @@ class CustomizationToggles extends StatelessWidget {
     required this.onToggleElevation,
     required this.onToggleDataGrid,
     required this.onToggleHeader,
+    required this.onToggleDataEntertainment,
   });
 
   @override
@@ -33,12 +35,55 @@ class CustomizationToggles extends StatelessWidget {
       spacing: 8,
       runSpacing: 6,
       children: [
-        _chip(context, s.share_toggleHeatmap, config.showHeatmap, onToggleHeatmap, ShareOption.heatmap),
-        _chip(context, s.share_toggleMapTiles, config.showMapTiles, onToggleMapTiles, ShareOption.mapTiles),
-        _chip(context, s.share_togglePaceChart, config.showPaceChart, onTogglePaceChart, ShareOption.paceChart),
-        _chip(context, s.share_toggleElevation, config.showElevationProfile, onToggleElevation, ShareOption.elevationProfile),
-        _chip(context, s.share_toggleDataGrid, config.showDataGrid, onToggleDataGrid, ShareOption.dataGrid),
-        _chip(context, s.share_toggleHeader, config.showHeader, onToggleHeader, ShareOption.header),
+        _chip(
+          context,
+          s.share_toggleHeatmap,
+          config.showHeatmap,
+          onToggleHeatmap,
+          ShareOption.heatmap,
+        ),
+        _chip(
+          context,
+          s.share_toggleMapTiles,
+          config.showMapTiles,
+          onToggleMapTiles,
+          ShareOption.mapTiles,
+        ),
+        _chip(
+          context,
+          s.share_togglePaceChart,
+          config.showPaceChart,
+          onTogglePaceChart,
+          ShareOption.paceChart,
+        ),
+        _chip(
+          context,
+          s.share_toggleElevation,
+          config.showElevationProfile,
+          onToggleElevation,
+          ShareOption.elevationProfile,
+        ),
+        _chip(
+          context,
+          s.share_toggleDataGrid,
+          config.showDataGrid,
+          onToggleDataGrid,
+          ShareOption.dataGrid,
+        ),
+        _chip(
+          context,
+          s.share_toggleHeader,
+          config.showHeader,
+          onToggleHeader,
+          ShareOption.header,
+        ),
+        _chip(
+          context,
+          s.share_toggleDataEntertainment,
+          config.showDataEntertainment,
+          onToggleDataEntertainment,
+          ShareOption.dataEntertainment,
+        ),
       ],
     );
   }
@@ -51,7 +96,9 @@ class CustomizationToggles extends StatelessWidget {
     ShareOption option,
   ) {
     final supported = ShareCardConfig.isOptionSupported(
-      config.template, option, aspectRatio: config.aspectRatio,
+      config.template,
+      option,
+      aspectRatio: config.aspectRatio,
     );
 
     if (!supported) {
@@ -67,12 +114,18 @@ class CustomizationToggles extends StatelessWidget {
               duration: const Duration(seconds: 2),
               behavior: SnackBarBehavior.floating,
               backgroundColor: SolrunColors.darkCard,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
             ),
           );
         },
         child: Tooltip(
-          message: S.of(context)!.share_unsupportedTemplate(_templateLabel(context, config.template)),
+          message: S
+              .of(context)!
+              .share_unsupportedTemplate(
+                _templateLabel(context, config.template),
+              ),
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 150),
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
@@ -90,11 +143,14 @@ class CustomizationToggles extends StatelessWidget {
                   color: Colors.white24,
                 ),
                 const SizedBox(width: 4),
-                Text(label, style: const TextStyle(
-                  fontSize: 11,
-                  color: Colors.white24,
-                  decoration: TextDecoration.lineThrough,
-                )),
+                Text(
+                  label,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: Colors.white24,
+                    decoration: TextDecoration.lineThrough,
+                  ),
+                ),
               ],
             ),
           ),
@@ -109,10 +165,14 @@ class CustomizationToggles extends StatelessWidget {
         duration: const Duration(milliseconds: 150),
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
         decoration: BoxDecoration(
-          color: enabled ? SolrunColors.accent.withValues(alpha: 0.15) : Colors.white10,
+          color: enabled
+              ? SolrunColors.accent.withValues(alpha: 0.15)
+              : Colors.white10,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: enabled ? SolrunColors.accent.withValues(alpha: 0.5) : Colors.white12,
+            color: enabled
+                ? SolrunColors.accent.withValues(alpha: 0.5)
+                : Colors.white12,
           ),
         ),
         child: Row(
@@ -124,10 +184,13 @@ class CustomizationToggles extends StatelessWidget {
               color: enabled ? SolrunColors.accent : Colors.white38,
             ),
             const SizedBox(width: 4),
-            Text(label, style: TextStyle(
-              fontSize: 11,
-              color: enabled ? Colors.white : Colors.white38,
-            )),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 11,
+                color: enabled ? Colors.white : Colors.white38,
+              ),
+            ),
           ],
         ),
       ),
@@ -138,10 +201,10 @@ class CustomizationToggles extends StatelessWidget {
   static String _templateLabel(BuildContext context, CardTemplate template) {
     final s = S.of(context)!;
     return switch (template) {
-      CardTemplate.classic  => s.share_templateClassic,
-      CardTemplate.heatmap  => s.share_templateHeatmap,
+      CardTemplate.classic => s.share_templateClassic,
+      CardTemplate.heatmap => s.share_templateHeatmap,
       CardTemplate.mapPhoto => s.share_templateMap,
-      CardTemplate.minimal  => s.share_templateMinimal,
+      CardTemplate.minimal => s.share_templateMinimal,
     };
   }
 }

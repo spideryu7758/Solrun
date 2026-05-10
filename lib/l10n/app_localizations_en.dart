@@ -1195,6 +1195,9 @@ class SEn extends S {
   String get share_toggleHeader => 'Header';
 
   @override
+  String get share_toggleDataEntertainment => 'Fun Data';
+
+  @override
   String share_optionNotSupported(String label, String template) {
     return '$label is not available in $template style';
   }

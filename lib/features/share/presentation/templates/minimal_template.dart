@@ -29,43 +29,47 @@ class MinimalTemplate extends StatelessWidget {
     return Container(
       width: cardWidth,
       height: cardHeight,
-      decoration: BoxDecoration(
-        color: SolrunColors.darkBg,
-      ),
+      decoration: BoxDecoration(color: SolrunColors.darkBg),
       clipBehavior: Clip.antiAlias,
       padding: const EdgeInsets.all(24),
       child: Column(
         children: [
           // 头像 + 昵称
-          Row(
-            children: [
-              CircleAvatar(
-                radius: 16,
-                backgroundColor: SolrunColors.darkCard,
-                backgroundImage: data.avatarPath != null
-                    ? FileImage(File(data.avatarPath!))
-                    : null,
-                child: data.avatarPath == null
-                    ? const Icon(Icons.person, size: 18, color: SolrunColors.darkMuted)
-                    : null,
-              ),
-              const SizedBox(width: 8),
-              Text(
-                data.nickname,
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                  color: SolrunColors.darkText,
-                  decoration: TextDecoration.none,
+          if (config.showHeader)
+            Row(
+              children: [
+                CircleAvatar(
+                  radius: 16,
+                  backgroundColor: SolrunColors.darkCard,
+                  backgroundImage: data.avatarPath != null
+                      ? FileImage(File(data.avatarPath!))
+                      : null,
+                  child: data.avatarPath == null
+                      ? const Icon(
+                          Icons.person,
+                          size: 18,
+                          color: SolrunColors.darkMuted,
+                        )
+                      : null,
                 ),
-              ),
-            ],
-          ),
+                const SizedBox(width: 8),
+                Text(
+                  data.nickname,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    color: SolrunColors.darkText,
+                    decoration: TextDecoration.none,
+                  ),
+                ),
+              ],
+            ),
 
-          // 1. 留白
-          const Spacer(flex: 1),
+          if (config.showHeader) const Spacer(flex: 1),
 
-          // 2. 距离大数字
+          if (!config.showHeader) const Spacer(flex: 2),
+
+          // 距离大数字
           Text(
             data.distanceKm,
             style: const TextStyle(
@@ -77,7 +81,7 @@ class MinimalTemplate extends StatelessWidget {
             ),
           ),
 
-          // 3. KM 标签
+          // KM 标签
           const Text(
             'KM',
             style: TextStyle(
@@ -89,32 +93,29 @@ class MinimalTemplate extends StatelessWidget {
             ),
           ),
 
-          const SizedBox(height: 8),
-
-          // 4. 日期 + 时间
-          Text(
-            data.dateFormatted,
-            style: const TextStyle(
-              fontFamily: 'JetBrainsMono',
-              fontSize: 16,
-              fontWeight: FontWeight.w500,
-              color: SolrunColors.darkMuted,
-              decoration: TextDecoration.none,
+          if (config.showHeader) ...[
+            const SizedBox(height: 8),
+            Text(
+              data.dateFormatted,
+              style: const TextStyle(
+                fontFamily: 'JetBrainsMono',
+                fontSize: 16,
+                fontWeight: FontWeight.w500,
+                color: SolrunColors.darkMuted,
+                decoration: TextDecoration.none,
+              ),
             ),
-          ),
+          ],
 
-          // 5. 留白
+          // 留白
           const Spacer(flex: 1),
 
-          // 6. 轨迹区域（占据卡片主体空间）
-          Expanded(
-            flex: 6,
-            child: _buildTrajectory(),
-          ),
+          // 轨迹区域（占据卡片主体空间）
+          Expanded(flex: 6, child: _buildTrajectory()),
 
           const SizedBox(height: 16),
 
-          // 7. 水印区域（观众喊话 + 品牌行）
+          // 水印区域（观众喊话 + 品牌行）
           if (config.showWatermark)
             WatermarkFooter(
               config: config,
@@ -134,9 +135,7 @@ class MinimalTemplate extends StatelessWidget {
     if (config.showMapTiles && data.points.length >= 2) {
       return Container(
         width: double.infinity,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(12),
-        ),
+        decoration: BoxDecoration(borderRadius: BorderRadius.circular(12)),
         clipBehavior: Clip.antiAlias,
         child: MapTrajectoryView(
           data: data,

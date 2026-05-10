@@ -382,6 +382,7 @@
   "share_toggleElevation": "Elevation Profile",
   "share_toggleDataGrid": "Data Grid",
   "share_toggleHeader": "Header",
+  "share_toggleDataEntertainment": "Fun Data",
   "share_optionNotSupported": "{label} is not available in {template} style",
   "@share_optionNotSupported": { "placeholders": { "label": { "type": "String" }, "template": { "type": "String" } } },
   "share_unsupportedTemplate": "{template} style not supported",

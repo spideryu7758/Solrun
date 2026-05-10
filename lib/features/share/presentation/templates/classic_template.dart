@@ -39,8 +39,12 @@ class ClassicTemplate extends StatelessWidget {
     if (config.showHeader) h += 40 + (c ? 8 : 16);
     h += c ? 10.0 : 20.0; // 轨迹后间距
     h += (c ? 48.0 : 64.0) + 16.0; // 距离 + 公里
-    if (config.showPaceChart && data.splits.isNotEmpty) h += (c ? 45.0 : 60.0) + (c ? 8 : 12);
-    if (config.showElevationProfile && data.altitudes.length >= 2) h += (c ? 35.0 : 45.0) + (c ? 6 : 8);
+    if (config.showPaceChart && data.splits.isNotEmpty) {
+      h += (c ? 45.0 : 60.0) + (c ? 8 : 12);
+    }
+    if (config.showElevationProfile && data.altitudes.length >= 2) {
+      h += (c ? 35.0 : 45.0) + (c ? 6 : 8);
+    }
     if (config.showDataGrid) h += (c ? 80.0 : 100.0) + (c ? 8 : 16);
     if (config.showWatermark) h += 14 + (c ? 6 : 12);
     return cardHeight - h < 30;
@@ -51,10 +55,10 @@ class ClassicTemplate extends StatelessWidget {
     return Container(
       width: cardWidth,
       height: cardHeight,
-      decoration: BoxDecoration(
-        color: SolrunColors.darkBg,
-      ),
-      child: _willOverflow ? _buildOverflowWarning(context) : _buildContent(context),
+      decoration: BoxDecoration(color: SolrunColors.darkBg),
+      child: _willOverflow
+          ? _buildOverflowWarning(context)
+          : _buildContent(context),
     );
   }
 
@@ -95,10 +99,7 @@ class ClassicTemplate extends StatelessWidget {
       child: Column(
         children: [
           // 头部：头像 + 昵称/日期 + Solrun logo
-          if (config.showHeader) ...[
-            _buildHeader(),
-            SizedBox(height: gap),
-          ],
+          if (config.showHeader) ...[_buildHeader(), SizedBox(height: gap)],
 
           // 轨迹图区域（占据大部分空间）
           Expanded(child: _buildTrajectory(context)),
@@ -120,13 +121,20 @@ class ClassicTemplate extends StatelessWidget {
           // 分公里配速图
           if (config.showPaceChart && data.splits.isNotEmpty) ...[
             const SizedBox(height: 8),
-            SplitPaceChart(splits: data.splits, height: _compact ? 45 : 60),
+            SplitPaceChart(
+              splits: data.splits,
+              height: _compact ? 45 : 60,
+              dataEntertainment: config.showDataEntertainment,
+            ),
           ],
 
           // 海拔剖面
           if (config.showElevationProfile && data.altitudes.length >= 2) ...[
             const SizedBox(height: 6),
-            ElevationProfile(altitudes: data.altitudes, height: _compact ? 35 : 45),
+            ElevationProfile(
+              altitudes: data.altitudes,
+              height: _compact ? 35 : 45,
+            ),
           ],
 
           // 数据网格
@@ -160,7 +168,11 @@ class ClassicTemplate extends StatelessWidget {
               ? FileImage(File(data.avatarPath!))
               : null,
           child: data.avatarPath == null
-              ? const Icon(Icons.person, size: 22, color: SolrunColors.darkMuted)
+              ? const Icon(
+                  Icons.person,
+                  size: 22,
+                  color: SolrunColors.darkMuted,
+                )
               : null,
         ),
         const SizedBox(width: 10),
@@ -208,9 +220,7 @@ class ClassicTemplate extends StatelessWidget {
     if (config.showMapTiles && data.points.length >= 2) {
       return Container(
         width: double.infinity,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(12),
-        ),
+        decoration: BoxDecoration(borderRadius: BorderRadius.circular(12)),
         clipBehavior: Clip.antiAlias,
         child: MapTrajectoryView(
           data: data,
@@ -275,6 +285,9 @@ class ClassicTemplate extends StatelessWidget {
     final vPad = _compact ? 8.0 : 12.0;
     final fontSize = _compact ? 14.0 : 16.0;
     final divH = _compact ? 24.0 : 32.0;
+    final pace = config.showDataEntertainment
+        ? data.entertainmentPaceFormatted
+        : data.paceFormatted;
 
     return Container(
       padding: EdgeInsets.symmetric(vertical: vPad, horizontal: 8),
@@ -286,7 +299,7 @@ class ClassicTemplate extends StatelessWidget {
         children: [
           Row(
             children: [
-              _dataItem(s.share_pace, data.paceFormatted, fontSize),
+              _dataItem(s.share_pace, pace, fontSize),
               _divider(divH),
               _dataItem(s.share_duration, data.durationFormatted, fontSize),
             ],
@@ -299,7 +312,11 @@ class ClassicTemplate extends StatelessWidget {
             children: [
               _dataItem(s.share_calories, data.caloriesFormatted, fontSize),
               _divider(divH),
-              _dataItem(s.share_elevationGain, data.elevationFormatted, fontSize),
+              _dataItem(
+                s.share_elevationGain,
+                data.elevationFormatted,
+                fontSize,
+              ),
             ],
           ),
         ],

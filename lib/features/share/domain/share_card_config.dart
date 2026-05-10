@@ -1,9 +1,9 @@
 /// 分享卡片模板
 enum CardTemplate {
-  classic,   // 经典（当前样式升级）
-  heatmap,   // 热力强调
-  mapPhoto,  // 地图底图 + 叠加
-  minimal;   // 极简
+  classic, // 经典（当前样式升级）
+  heatmap, // 热力强调
+  mapPhoto, // 地图底图 + 叠加
+  minimal; // 极简
 
   /// 各模板的中文名称
   String get label => switch (this) {
@@ -16,9 +16,9 @@ enum CardTemplate {
 
 /// 分享卡片比例
 enum CardAspectRatio {
-  story(9, 16, '9:16'),     // 故事/朋友圈
-  square(1, 1, '1:1'),      // 朋友圈方图
-  portrait(3, 4, '3:4');    // 竖版
+  story(9, 16, '9:16'), // 故事/朋友圈
+  square(1, 1, '1:1'), // 朋友圈方图
+  portrait(3, 4, '3:4'); // 竖版
 
   final int w;
   final int h;
@@ -35,6 +35,7 @@ enum ShareOption {
   elevationProfile,
   dataGrid,
   header,
+  dataEntertainment,
 }
 
 /// 分享卡片配置（不可变）
@@ -48,8 +49,9 @@ class ShareCardConfig {
   final bool showDataGrid;
   final bool showHeader;
   final bool showWatermark;
-  final String? shoutText;  // 观众喊话水印内容
-  final String? shoutRole;  // 观众角色名
+  final bool showDataEntertainment;
+  final String? shoutText; // 观众喊话水印内容
+  final String? shoutRole; // 观众角色名
 
   const ShareCardConfig({
     this.template = CardTemplate.classic,
@@ -61,6 +63,7 @@ class ShareCardConfig {
     this.showDataGrid = true,
     this.showHeader = true,
     this.showWatermark = true,
+    this.showDataEntertainment = false,
     this.shoutText,
     this.shoutRole,
   });
@@ -75,6 +78,7 @@ class ShareCardConfig {
     bool? showDataGrid,
     bool? showHeader,
     bool? showWatermark,
+    bool? showDataEntertainment,
     String? shoutText,
     String? shoutRole,
     bool clearShout = false,
@@ -89,6 +93,8 @@ class ShareCardConfig {
       showDataGrid: showDataGrid ?? this.showDataGrid,
       showHeader: showHeader ?? this.showHeader,
       showWatermark: showWatermark ?? this.showWatermark,
+      showDataEntertainment:
+          showDataEntertainment ?? this.showDataEntertainment,
       shoutText: clearShout ? null : (shoutText ?? this.shoutText),
       shoutRole: clearShout ? null : (shoutRole ?? this.shoutRole),
     );
@@ -106,6 +112,7 @@ class ShareCardConfig {
         showDataGrid: true,
         showHeader: true,
         showWatermark: true,
+        showDataEntertainment: false,
       ),
       CardTemplate.heatmap => const ShareCardConfig(
         template: CardTemplate.heatmap,
@@ -116,6 +123,7 @@ class ShareCardConfig {
         showDataGrid: true,
         showHeader: true,
         showWatermark: true,
+        showDataEntertainment: false,
       ),
       CardTemplate.mapPhoto => const ShareCardConfig(
         template: CardTemplate.mapPhoto,
@@ -123,9 +131,10 @@ class ShareCardConfig {
         showMapTiles: true,
         showPaceChart: false,
         showElevationProfile: false,
-        showDataGrid: true,
-        showHeader: true,
+        showDataGrid: false,
+        showHeader: false,
         showWatermark: true,
+        showDataEntertainment: false,
       ),
       CardTemplate.minimal => const ShareCardConfig(
         template: CardTemplate.minimal,
@@ -136,6 +145,7 @@ class ShareCardConfig {
         showDataGrid: false,
         showHeader: false,
         showWatermark: true,
+        showDataEntertainment: false,
       ),
     };
   }
@@ -149,12 +159,14 @@ class ShareCardConfig {
     return switch (template) {
       // 经典：1:1 比例下轨迹区域太小，不支持地图底图
       CardTemplate.classic => switch (option) {
-        ShareOption.mapTiles when aspectRatio == CardAspectRatio.square => false,
+        ShareOption.mapTiles when aspectRatio == CardAspectRatio.square =>
+          false,
         _ => true,
       },
       // 热力：1:1 比例下地图区域太小，不支持地图底图
       CardTemplate.heatmap => switch (option) {
-        ShareOption.mapTiles when aspectRatio == CardAspectRatio.square => false,
+        ShareOption.mapTiles when aspectRatio == CardAspectRatio.square =>
+          false,
         _ => true,
       },
       // 地图模板：不支持配速图、海拔、数据网格、头部信息
@@ -171,7 +183,9 @@ class ShareCardConfig {
         ShareOption.elevationProfile => false,
         ShareOption.dataGrid => false,
         ShareOption.header => false,
-        ShareOption.mapTiles when aspectRatio == CardAspectRatio.square => false,
+        ShareOption.dataEntertainment => false,
+        ShareOption.mapTiles when aspectRatio == CardAspectRatio.square =>
+          false,
         _ => true,
       },
     };

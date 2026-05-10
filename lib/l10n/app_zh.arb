@@ -419,6 +419,7 @@
   "share_toggleElevation": "海拔剖面",
   "share_toggleDataGrid": "数据网格",
   "share_toggleHeader": "头部信息",
+  "share_toggleDataEntertainment": "数据娱乐化",
   "share_optionNotSupported": "{label} 无法在{template}风格中展示",
   "@share_optionNotSupported": { "placeholders": { "label": { "type": "String" }, "template": { "type": "String" } } },
   "share_unsupportedTemplate": "不支持{template}风格",

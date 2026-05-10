@@ -45,18 +45,39 @@ class _SharePreviewScreenState extends ConsumerState<SharePreviewScreen> {
   Widget _buildTemplate(ShareCardData data, ShareCardConfig config) {
     final h = _cardHeight(config.aspectRatio);
     return switch (config.template) {
-      CardTemplate.classic  => ClassicTemplate(data: data, config: config, cardWidth: _baseWidth, cardHeight: h),
-      CardTemplate.heatmap  => HeatmapTemplate(data: data, config: config, cardWidth: _baseWidth, cardHeight: h),
-      CardTemplate.mapPhoto => MapPhotoTemplate(data: data, config: config, cardWidth: _baseWidth, cardHeight: h),
-      CardTemplate.minimal  => MinimalTemplate(data: data, config: config, cardWidth: _baseWidth, cardHeight: h),
+      CardTemplate.classic => ClassicTemplate(
+        data: data,
+        config: config,
+        cardWidth: _baseWidth,
+        cardHeight: h,
+      ),
+      CardTemplate.heatmap => HeatmapTemplate(
+        data: data,
+        config: config,
+        cardWidth: _baseWidth,
+        cardHeight: h,
+      ),
+      CardTemplate.mapPhoto => MapPhotoTemplate(
+        data: data,
+        config: config,
+        cardWidth: _baseWidth,
+        cardHeight: h,
+      ),
+      CardTemplate.minimal => MinimalTemplate(
+        data: data,
+        config: config,
+        cardWidth: _baseWidth,
+        cardHeight: h,
+      ),
     };
   }
 
   /// 观众语录选择器（水平 chip 列表）
   Widget _buildShoutSelector(
-      ShareCardConfig config, ShareCardNotifier notifier) {
-    final shoutsAsync =
-        ref.watch(sessionShoutsProvider(widget.sessionId));
+    ShareCardConfig config,
+    ShareCardNotifier notifier,
+  ) {
+    final shoutsAsync = ref.watch(sessionShoutsProvider(widget.sessionId));
     return shoutsAsync.when(
       loading: () => const SizedBox.shrink(),
       error: (_, _) => const SizedBox.shrink(),
@@ -68,11 +89,14 @@ class _SharePreviewScreenState extends ConsumerState<SharePreviewScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(s.share_audienceQuote,
-                  style: const TextStyle(
-                      fontSize: 11,
-                      color: Colors.white54,
-                      letterSpacing: 1)),
+              Text(
+                s.share_audienceQuote,
+                style: const TextStyle(
+                  fontSize: 11,
+                  color: Colors.white54,
+                  letterSpacing: 1,
+                ),
+              ),
               const SizedBox(height: 6),
               ConstrainedBox(
                 constraints: const BoxConstraints(maxHeight: 120),
@@ -88,25 +112,30 @@ class _SharePreviewScreenState extends ConsumerState<SharePreviewScreen> {
                                 notifier.setShout(null, null);
                               } else {
                                 notifier.setShout(
-                                    shout.content, shout.audienceRole);
+                                  shout.content,
+                                  shout.audienceRole,
+                                );
                               }
                             },
                             child: Container(
                               width: double.infinity,
                               padding: const EdgeInsets.symmetric(
-                                  horizontal: 10, vertical: 8),
+                                horizontal: 10,
+                                vertical: 8,
+                              ),
                               decoration: BoxDecoration(
                                 color: config.shoutText == shout.content
-                                    ? SolrunColors.accent
-                                        .withValues(alpha: 0.15)
+                                    ? SolrunColors.accent.withValues(
+                                        alpha: 0.15,
+                                      )
                                     : Colors.white.withValues(alpha: 0.06),
                                 borderRadius: BorderRadius.circular(8),
                                 border: Border.all(
                                   color: config.shoutText == shout.content
-                                      ? SolrunColors.accent
-                                          .withValues(alpha: 0.5)
-                                      : Colors.white
-                                          .withValues(alpha: 0.12),
+                                      ? SolrunColors.accent.withValues(
+                                          alpha: 0.5,
+                                        )
+                                      : Colors.white.withValues(alpha: 0.12),
                                 ),
                               ),
                               child: Text(
@@ -141,7 +170,8 @@ class _SharePreviewScreenState extends ConsumerState<SharePreviewScreen> {
       // 等待渲染完成（地图瓦片需要额外时间）
       await Future.delayed(const Duration(milliseconds: 500));
 
-      final boundary = _cardKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
+      final boundary =
+          _cardKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
       if (boundary == null) return null;
       final image = await boundary.toImage(pixelRatio: 3.0);
       final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
@@ -168,8 +198,11 @@ class _SharePreviewScreenState extends ConsumerState<SharePreviewScreen> {
 
       final tempDir = await getTemporaryDirectory();
       final t = data.session.startTime;
-      final ds = '${t.year}${t.month.toString().padLeft(2, '0')}${t.day.toString().padLeft(2, '0')}';
-      final tempFile = File('${tempDir.path}/Solrun_${ds}_${data.session.id}.png');
+      final ds =
+          '${t.year}${t.month.toString().padLeft(2, '0')}${t.day.toString().padLeft(2, '0')}';
+      final tempFile = File(
+        '${tempDir.path}/Solrun_${ds}_${data.session.id}.png',
+      );
       await tempFile.writeAsBytes(bytes);
 
       const channel = MethodChannel('com.runpure.run_pure/media_store');
@@ -184,13 +217,15 @@ class _SharePreviewScreenState extends ConsumerState<SharePreviewScreen> {
         final file = File('${dir.path}/Solrun_${ds}_${data.session.id}.png');
         await tempFile.copy(file.path);
         const scanChannel = MethodChannel('com.runpure.run_pure/media_scanner');
-        try { await scanChannel.invokeMethod('scan', {'path': file.path}); } catch (_) {}
+        try {
+          await scanChannel.invokeMethod('scan', {'path': file.path});
+        } catch (_) {}
       }
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(s.share_savedToGallery)),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(s.share_savedToGallery)));
       }
     } catch (e) {
       if (mounted) {
@@ -223,22 +258,35 @@ class _SharePreviewScreenState extends ConsumerState<SharePreviewScreen> {
       appBar: AppBar(
         backgroundColor: Colors.black,
         foregroundColor: Colors.white,
-        title: Text(S.of(context)!.share_title, style: const TextStyle(fontSize: 16)),
+        title: Text(
+          S.of(context)!.share_title,
+          style: const TextStyle(fontSize: 16),
+        ),
         leading: IconButton(
           icon: const Icon(Icons.close),
           onPressed: () => Navigator.of(context).pop(),
         ),
       ),
       body: dataAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator(color: SolrunColors.accent)),
-        error: (e, _) => Center(child: Text(S.of(context)!.share_loadFailed(e.toString()), style: const TextStyle(color: Colors.white))),
+        loading: () => const Center(
+          child: CircularProgressIndicator(color: SolrunColors.accent),
+        ),
+        error: (e, _) => Center(
+          child: Text(
+            S.of(context)!.share_loadFailed(e.toString()),
+            style: const TextStyle(color: Colors.white),
+          ),
+        ),
         data: (data) => Column(
           children: [
             // 卡片预览
             Expanded(
               child: Center(
                 child: SingleChildScrollView(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 8,
+                  ),
                   child: RepaintBoundary(
                     key: _cardKey,
                     child: _buildTemplate(data, config),
@@ -276,29 +324,47 @@ class _SharePreviewScreenState extends ConsumerState<SharePreviewScreen> {
                         const SizedBox(width: 8),
                         // 自定义开关（可折叠）
                         GestureDetector(
-                          onTap: () => setState(() => _customExpanded = !_customExpanded),
+                          onTap: () => setState(
+                            () => _customExpanded = !_customExpanded,
+                          ),
                           child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 6,
+                            ),
                             decoration: BoxDecoration(
-                              color: _customExpanded ? SolrunColors.accent.withValues(alpha: 0.15) : Colors.white.withValues(alpha: 0.06),
+                              color: _customExpanded
+                                  ? SolrunColors.accent.withValues(alpha: 0.15)
+                                  : Colors.white.withValues(alpha: 0.06),
                               borderRadius: BorderRadius.circular(8),
                               border: Border.all(
-                                color: _customExpanded ? SolrunColors.accent.withValues(alpha: 0.4) : Colors.white.withValues(alpha: 0.1),
+                                color: _customExpanded
+                                    ? SolrunColors.accent.withValues(alpha: 0.4)
+                                    : Colors.white.withValues(alpha: 0.1),
                               ),
                             ),
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Text(S.of(context)!.share_customize, style: TextStyle(
-                                  fontSize: 11,
-                                  color: _customExpanded ? SolrunColors.accent : Colors.white54,
-                                  letterSpacing: 1,
-                                )),
+                                Text(
+                                  S.of(context)!.share_customize,
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: _customExpanded
+                                        ? SolrunColors.accent
+                                        : Colors.white54,
+                                    letterSpacing: 1,
+                                  ),
+                                ),
                                 const SizedBox(width: 2),
                                 Icon(
-                                  _customExpanded ? Icons.expand_less : Icons.expand_more,
+                                  _customExpanded
+                                      ? Icons.expand_less
+                                      : Icons.expand_more,
                                   size: 14,
-                                  color: _customExpanded ? SolrunColors.accent : Colors.white38,
+                                  color: _customExpanded
+                                      ? SolrunColors.accent
+                                      : Colors.white38,
                                 ),
                               ],
                             ),
@@ -318,6 +384,8 @@ class _SharePreviewScreenState extends ConsumerState<SharePreviewScreen> {
                         onToggleElevation: notifier.toggleElevationProfile,
                         onToggleDataGrid: notifier.toggleDataGrid,
                         onToggleHeader: notifier.toggleHeader,
+                        onToggleDataEntertainment:
+                            notifier.toggleDataEntertainment,
                       ),
                     ),
                     // 观众语录选择器
@@ -330,7 +398,9 @@ class _SharePreviewScreenState extends ConsumerState<SharePreviewScreen> {
             // 底部操作栏
             Container(
               padding: EdgeInsets.only(
-                left: 20, right: 20, top: 12,
+                left: 20,
+                right: 20,
+                top: 12,
                 bottom: MediaQuery.of(context).padding.bottom + 12,
               ),
               color: Colors.black,
@@ -338,16 +408,24 @@ class _SharePreviewScreenState extends ConsumerState<SharePreviewScreen> {
                 children: [
                   Expanded(
                     child: OutlinedButton.icon(
-                      onPressed: _saving ? null : () => _downloadToGallery(data),
+                      onPressed: _saving
+                          ? null
+                          : () => _downloadToGallery(data),
                       icon: _saving
-                          ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
                           : const Icon(Icons.download, size: 18),
                       label: Text(S.of(context)!.share_saveToGallery),
                       style: OutlinedButton.styleFrom(
                         foregroundColor: Colors.white,
                         side: const BorderSide(color: Colors.white30),
                         padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                       ),
                     ),
                   ),
@@ -361,7 +439,9 @@ class _SharePreviewScreenState extends ConsumerState<SharePreviewScreen> {
                         backgroundColor: SolrunColors.accent,
                         foregroundColor: const Color(0xFF0A0A0F),
                         padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                       ),
                     ),
                   ),

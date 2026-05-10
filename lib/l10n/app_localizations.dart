@@ -2179,6 +2179,12 @@ abstract class S {
   /// **'头部信息'**
   String get share_toggleHeader;
 
+  /// No description provided for @share_toggleDataEntertainment.
+  ///
+  /// In zh, this message translates to:
+  /// **'数据娱乐化'**
+  String get share_toggleDataEntertainment;
+
   /// No description provided for @share_optionNotSupported.
   ///
   /// In zh, this message translates to:
