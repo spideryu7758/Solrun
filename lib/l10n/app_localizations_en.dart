@@ -587,7 +587,7 @@ class SEn extends S {
 
   @override
   String get settings_autoPauseDesc =>
-      'Pauses after 5 seconds stopped or moving slowly';
+      'Pauses after 3 seconds stopped or moving slowly';
 
   @override
   String get settings_ttsSection => 'VOICE BROADCAST';

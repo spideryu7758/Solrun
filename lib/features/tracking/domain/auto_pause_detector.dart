@@ -1,6 +1,6 @@
 /// 自动暂停检测器
 /// - 有步频传感器时：低步频 + GPS 未明确移动 → 触发暂停
-/// - 无步频传感器时：低速或小位移持续 5 秒 → 触发暂停
+/// - 无步频传感器时：低速或小位移持续 3 秒 → 触发暂停
 /// - 恢复时步频或 GPS 任一明确移动即可恢复
 /// - 使用迟滞（hysteresis）避免临界值震荡
 class AutoPauseDetector {
@@ -26,7 +26,7 @@ class AutoPauseDetector {
   static const int resumeCadenceThresholdSpm = 20;
 
   /// 需要持续低于阈值的时间（秒）
-  static const int pauseDelaySec = 5;
+  static const int pauseDelaySec = 3;
 
   bool _isPaused = false;
   DateTime? _slowSince; // 速度首次低于阈值的时间
@@ -43,16 +43,18 @@ class AutoPauseDetector {
     DateTime timestamp, {
     int? cadenceSpm,
     double? recentDisplacementMeters,
+    Duration? recentDisplacementDuration,
     double? accuracyMeters,
   }) {
     final hasReliableDisplacement =
         recentDisplacementMeters != null &&
         (accuracyMeters == null ||
             accuracyMeters <= maxAccuracyForDisplacementMeters);
-    final lowGpsMotion =
-        speedMs < pauseSpeedThreshold ||
-        (hasReliableDisplacement &&
-            recentDisplacementMeters <= pauseDisplacementThresholdMeters);
+    final lowSpeed = speedMs < pauseSpeedThreshold;
+    final lowDisplacement =
+        hasReliableDisplacement &&
+        recentDisplacementMeters <= pauseDisplacementThresholdMeters;
+    final lowGpsMotion = lowSpeed || lowDisplacement;
     final resumedGpsMotion =
         speedMs > resumeSpeedThreshold ||
         (hasReliableDisplacement &&
@@ -78,7 +80,13 @@ class AutoPauseDetector {
     } else {
       // 当前正在运动，检查是否应暂停
       if (shouldPause) {
-        _slowSince ??= timestamp;
+        final inferredSlowSince =
+            lowDisplacement && recentDisplacementDuration != null
+            ? timestamp.subtract(recentDisplacementDuration)
+            : timestamp;
+        if (_slowSince == null || inferredSlowSince.isBefore(_slowSince!)) {
+          _slowSince = inferredSlowSince;
+        }
         final slowDuration = timestamp.difference(_slowSince!).inSeconds;
         if (slowDuration >= pauseDelaySec) {
           _isPaused = true;

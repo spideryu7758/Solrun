@@ -21,6 +21,10 @@ import 'tracking_state.dart';
 
 /// 运动核心状态管理器
 class TrackingNotifier extends StateNotifier<TrackingState> {
+  static const _autoPauseDisplacementWindow = Duration(
+    seconds: AutoPauseDetector.pauseDelaySec,
+  );
+
   final LocationService _locationService;
   final StepCadenceService _stepCadenceService;
   final RunSessionDao _runSessionDao;
@@ -228,20 +232,25 @@ class TrackingNotifier extends StateNotifier<TrackingState> {
     // 暂停状态下不累计距离
     if (state.status == TrackingStatus.paused) return;
 
+    var pauseStateChanged = false;
+
     // 自动暂停检测（保持 3s 高频采样，不降频，确保恢复灵敏）
     if (_autoPauseEnabled) {
       _autoPauseWindow.add(point);
       _trimAutoPauseWindow(point.timestamp);
+      final recentMotion = _recentAutoPauseMotion();
       final event = _autoPauseDetector.update(
         point.speed,
         point.timestamp,
         cadenceSpm: _cadenceForPause(point.timestamp),
-        recentDisplacementMeters: _recentAutoPauseDisplacement(),
+        recentDisplacementMeters: recentMotion?.displacementMeters,
+        recentDisplacementDuration: recentMotion?.duration,
         accuracyMeters: point.accuracy,
       );
       if (event == AutoPauseEvent.paused) {
         _pauseStartTime = DateTime.now();
         state = state.copyWith(status: TrackingStatus.autoPaused);
+        _announcePauseState(true);
         // 不降频：自动暂停期间仍以 3s 频率采样，确保恢复检测灵敏
         return;
       } else if (event == AutoPauseEvent.resumed) {
@@ -252,6 +261,8 @@ class TrackingNotifier extends StateNotifier<TrackingState> {
           _pauseStartTime = null;
         }
         state = state.copyWith(status: TrackingStatus.running);
+        pauseStateChanged = true;
+        _announcePauseState(false);
       }
     }
 
@@ -286,7 +297,7 @@ class TrackingNotifier extends StateNotifier<TrackingState> {
     );
 
     // 语音播报检查（每 N km）
-    if (_ttsEnabled && _ttsIntervalKm > 0) {
+    if (_ttsEnabled && _ttsIntervalKm > 0 && !pauseStateChanged) {
       final currentKm = (_paceCalculator.totalDistanceMeters / 1000).floor();
       final nextAnnounceKm = _lastAnnouncedKm + _ttsIntervalKm;
       if (currentKm >= nextAnnounceKm) {
@@ -345,18 +356,21 @@ class TrackingNotifier extends StateNotifier<TrackingState> {
   }
 
   void _trimAutoPauseWindow(DateTime now) {
-    final cutoff = now.subtract(const Duration(seconds: 12));
+    final cutoff = now.subtract(_autoPauseDisplacementWindow);
     _autoPauseWindow.removeWhere((point) => point.timestamp.isBefore(cutoff));
   }
 
-  double? _recentAutoPauseDisplacement() {
+  ({double displacementMeters, Duration duration})? _recentAutoPauseMotion() {
     if (_autoPauseWindow.length < 2) return null;
     final first = _autoPauseWindow.first;
     final last = _autoPauseWindow.last;
-    return Distance().as(
-      LengthUnit.Meter,
-      LatLng(first.latitude, first.longitude),
-      LatLng(last.latitude, last.longitude),
+    return (
+      displacementMeters: Distance().as(
+        LengthUnit.Meter,
+        LatLng(first.latitude, first.longitude),
+        LatLng(last.latitude, last.longitude),
+      ),
+      duration: last.timestamp.difference(first.timestamp),
     );
   }
 
@@ -366,7 +380,7 @@ class TrackingNotifier extends StateNotifier<TrackingState> {
     _pauseStartTime = DateTime.now();
     state = state.copyWith(status: TrackingStatus.paused);
     _locationService.updateInterval(isPaused: true);
-    if (_ttsEnabled) _ttsService.announcePause(true);
+    _announcePauseState(true);
   }
 
   /// 手动继续
@@ -385,7 +399,11 @@ class TrackingNotifier extends StateNotifier<TrackingState> {
     _autoPauseDetector.reset();
     state = state.copyWith(status: TrackingStatus.running);
     _locationService.updateInterval(isPaused: false);
-    if (_ttsEnabled) _ttsService.announcePause(false);
+    _announcePauseState(false);
+  }
+
+  void _announcePauseState(bool isPaused) {
+    if (_ttsEnabled) unawaited(_ttsService.announcePause(isPaused));
   }
 
   /// 结束跑步

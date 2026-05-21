@@ -579,7 +579,7 @@ class SZh extends S {
   String get settings_autoPause => '自动暂停';
 
   @override
-  String get settings_autoPauseDesc => '停步或低速持续 5 秒自动暂停';
+  String get settings_autoPauseDesc => '停步或低速持续 3 秒自动暂停';
 
   @override
   String get settings_ttsSection => '语音播报';

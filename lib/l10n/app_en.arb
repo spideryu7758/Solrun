@@ -175,7 +175,7 @@
   "settings_personalInfo": "PERSONAL INFO",
   "settings_runSettings": "RUN SETTINGS",
   "settings_autoPause": "Auto Pause",
-  "settings_autoPauseDesc": "Pauses after 5 seconds stopped or moving slowly",
+  "settings_autoPauseDesc": "Pauses after 3 seconds stopped or moving slowly",
   "settings_ttsSection": "VOICE BROADCAST",
   "settings_tts": "Voice Broadcast",
   "settings_ttsDesc": "Announce distance and pace during runs",

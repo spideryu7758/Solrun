@@ -13,20 +13,20 @@ void main() {
       expect(detector.isPaused, false);
     });
 
-    test('速度低于阈值但不足 5 秒不触发', () {
+    test('速度低于阈值但不足 3 秒不触发', () {
       final t0 = DateTime(2026, 1, 1, 0, 0, 0);
-      // 连续 4 秒低速
-      for (int i = 0; i < 4; i++) {
+      // 连续 2 秒低速
+      for (int i = 0; i < 3; i++) {
         final event = detector.update(0.1, t0.add(Duration(seconds: i)));
         expect(event, isNull);
       }
       expect(detector.isPaused, false);
     });
 
-    test('速度低于阈值持续 5 秒触发暂停', () {
+    test('速度低于阈值持续 3 秒触发暂停', () {
       final t0 = DateTime(2026, 1, 1, 0, 0, 0);
       AutoPauseEvent? lastEvent;
-      for (int i = 0; i <= 5; i++) {
+      for (int i = 0; i <= 3; i++) {
         lastEvent = detector.update(0.1, t0.add(Duration(seconds: i)));
       }
       expect(lastEvent, AutoPauseEvent.paused);
@@ -37,7 +37,7 @@ void main() {
       final t0 = DateTime(2026, 1, 1, 0, 0, 0);
       // 0.278 m/s = 1.0 km/h，不低于阈值（< 0.278 才触发）
       AutoPauseEvent? lastEvent;
-      for (int i = 0; i <= 6; i++) {
+      for (int i = 0; i <= 4; i++) {
         lastEvent = detector.update(0.278, t0.add(Duration(seconds: i)));
       }
       // 0.278 恰好等于阈值，不满足 < 条件，不应触发
@@ -45,10 +45,10 @@ void main() {
       expect(lastEvent, isNull);
     });
 
-    test('速度刚低于 1.0 km/h (0.277 m/s) 持续 5 秒触发', () {
+    test('速度刚低于 1.0 km/h (0.277 m/s) 持续 3 秒触发', () {
       final t0 = DateTime(2026, 1, 1, 0, 0, 0);
       AutoPauseEvent? lastEvent;
-      for (int i = 0; i <= 5; i++) {
+      for (int i = 0; i <= 3; i++) {
         lastEvent = detector.update(0.277, t0.add(Duration(seconds: i)));
       }
       expect(lastEvent, AutoPauseEvent.paused);
@@ -60,7 +60,7 @@ void main() {
     test('暂停后速度超过 1.5 km/h 恢复', () {
       final t0 = DateTime(2026, 1, 1, 0, 0, 0);
       // 先触发暂停
-      for (int i = 0; i <= 5; i++) {
+      for (int i = 0; i <= 3; i++) {
         detector.update(0.1, t0.add(Duration(seconds: i)));
       }
       expect(detector.isPaused, true);
@@ -73,7 +73,7 @@ void main() {
 
     test('暂停后速度恰好 0.417 m/s (1.5 km/h) 不恢复', () {
       final t0 = DateTime(2026, 1, 1, 0, 0, 0);
-      for (int i = 0; i <= 5; i++) {
+      for (int i = 0; i <= 3; i++) {
         detector.update(0.1, t0.add(Duration(seconds: i)));
       }
       expect(detector.isPaused, true);
@@ -86,7 +86,7 @@ void main() {
 
     test('暂停后速度刚超过 1.5 km/h (0.418 m/s) 恢复', () {
       final t0 = DateTime(2026, 1, 1, 0, 0, 0);
-      for (int i = 0; i <= 5; i++) {
+      for (int i = 0; i <= 3; i++) {
         detector.update(0.1, t0.add(Duration(seconds: i)));
       }
 
@@ -97,10 +97,10 @@ void main() {
   });
 
   group('AutoPauseDetector 步频辅助', () {
-    test('有步频数据时停步 5 秒触发暂停，即使 GPS 轻微漂移', () {
+    test('有步频数据时停步 3 秒触发暂停，即使 GPS 轻微漂移', () {
       final t0 = DateTime(2026, 1, 1, 0, 0, 0);
       AutoPauseEvent? lastEvent;
-      for (int i = 0; i <= 5; i++) {
+      for (int i = 0; i <= 3; i++) {
         lastEvent = detector.update(
           0.35,
           t0.add(Duration(seconds: i)),
@@ -113,7 +113,7 @@ void main() {
 
     test('有步频数据时低速但仍在走动不暂停', () {
       final t0 = DateTime(2026, 1, 1, 0, 0, 0);
-      for (int i = 0; i <= 6; i++) {
+      for (int i = 0; i <= 4; i++) {
         detector.update(0.1, t0.add(Duration(seconds: i)), cadenceSpm: 80);
       }
       expect(detector.isPaused, false);
@@ -121,7 +121,7 @@ void main() {
 
     test('低步频时 GPS 明确移动会否决暂停', () {
       final t0 = DateTime(2026, 1, 1, 0, 0, 0);
-      for (int i = 0; i <= 5; i++) {
+      for (int i = 0; i <= 3; i++) {
         detector.update(0.8, t0.add(Duration(seconds: i)), cadenceSpm: 0);
       }
       expect(detector.isPaused, false);
@@ -129,7 +129,7 @@ void main() {
 
     test('自动暂停后步频或 GPS 明确移动都可恢复', () {
       final t0 = DateTime(2026, 1, 1, 0, 0, 0);
-      for (int i = 0; i <= 5; i++) {
+      for (int i = 0; i <= 3; i++) {
         detector.update(0.35, t0.add(Duration(seconds: i)), cadenceSpm: 0);
       }
       expect(detector.isPaused, true);
@@ -151,7 +151,7 @@ void main() {
       expect(detector.isPaused, false);
 
       detector.reset();
-      for (int i = 0; i <= 5; i++) {
+      for (int i = 0; i <= 3; i++) {
         detector.update(0.35, t0.add(Duration(seconds: i)), cadenceSpm: 0);
       }
       final stepEvent = detector.update(
@@ -168,7 +168,7 @@ void main() {
     test('无步频时 GPS 速度漂移但近期位移很小也会暂停', () {
       final t0 = DateTime(2026, 1, 1, 0, 0, 0);
       AutoPauseEvent? lastEvent;
-      for (int i = 0; i <= 5; i++) {
+      for (int i = 0; i <= 3; i++) {
         lastEvent = detector.update(
           0.5,
           t0.add(Duration(seconds: i)),
@@ -180,9 +180,22 @@ void main() {
       expect(detector.isPaused, true);
     });
 
+    test('无步频时小位移窗口覆盖 3 秒可立即触发暂停', () {
+      final t0 = DateTime(2026, 1, 1, 0, 0, 0);
+      final event = detector.update(
+        0.5,
+        t0.add(const Duration(seconds: 3)),
+        recentDisplacementMeters: 2.0,
+        recentDisplacementDuration: const Duration(seconds: 3),
+        accuracyMeters: 8.0,
+      );
+      expect(event, AutoPauseEvent.paused);
+      expect(detector.isPaused, true);
+    });
+
     test('无步频时 GPS 精度差则不使用小位移暂停判断', () {
       final t0 = DateTime(2026, 1, 1, 0, 0, 0);
-      for (int i = 0; i <= 6; i++) {
+      for (int i = 0; i <= 4; i++) {
         detector.update(
           0.5,
           t0.add(Duration(seconds: i)),
@@ -195,7 +208,7 @@ void main() {
 
     test('自动暂停后 GPS 位移恢复可触发恢复', () {
       final t0 = DateTime(2026, 1, 1, 0, 0, 0);
-      for (int i = 0; i <= 5; i++) {
+      for (int i = 0; i <= 3; i++) {
         detector.update(
           0.5,
           t0.add(Duration(seconds: i)),
@@ -219,7 +232,7 @@ void main() {
   group('AutoPauseDetector 震荡', () {
     test('速度在阈值附近快速震荡不误触发', () {
       final t0 = DateTime(2026, 1, 1, 0, 0, 0);
-      // 交替高低速，每次不超过 5 秒
+      // 交替高低速，每次不超过 3 秒
       for (int i = 0; i < 20; i++) {
         final speed = i.isEven ? 0.1 : 0.5; // 低 → 高 → 低 → 高
         detector.update(speed, t0.add(Duration(seconds: i)));
@@ -232,7 +245,7 @@ void main() {
   group('AutoPauseDetector reset', () {
     test('reset 清除所有状态', () {
       final t0 = DateTime(2026, 1, 1, 0, 0, 0);
-      for (int i = 0; i <= 5; i++) {
+      for (int i = 0; i <= 3; i++) {
         detector.update(0.1, t0.add(Duration(seconds: i)));
       }
       expect(detector.isPaused, true);
