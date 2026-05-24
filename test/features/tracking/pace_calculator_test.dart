@@ -47,11 +47,7 @@ void main() {
       // 模拟 5 min/km 的跑步（约 3.33 m/s）
       // 每 3 秒前进约 10m（纬度约 0.00009）
       for (int i = 0; i <= 30; i += 3) {
-        calculator.addPoint(_point(
-          lat: 39.9 + i * 0.00003,
-          lng: 116.4,
-          ts: i,
-        ));
+        calculator.addPoint(_point(lat: 39.9 + i * 0.00003, lng: 116.4, ts: i));
       }
       final pace = calculator.currentPaceSecPerKm;
       expect(pace, isNotNull);
@@ -85,11 +81,13 @@ void main() {
     test('跨过 1km 产生 split', () {
       // 每个点间距约 111m（纬度差 0.001），需要约 10 个点达到 1km
       for (int i = 0; i <= 10; i++) {
-        calculator.addPoint(_point(
-          lat: 39.9 + i * 0.001,
-          lng: 116.4,
-          ts: i * 3, // 保持在 GPS 断流阈值内
-        ));
+        calculator.addPoint(
+          _point(
+            lat: 39.9 + i * 0.001,
+            lng: 116.4,
+            ts: i * 3, // 保持在 GPS 断流阈值内
+          ),
+        );
       }
       expect(calculator.completedKms, greaterThanOrEqualTo(1));
       expect(calculator.splits, isNotEmpty);
@@ -99,12 +97,60 @@ void main() {
 
     test('finishLastSplit 处理部分公里', () {
       calculator.addPoint(_point(lat: 39.9, lng: 116.4, ts: 0));
-      calculator.addPoint(_point(lat: 39.905, lng: 116.4, ts: 6)); // ~555m，保持连续采样
+      calculator.addPoint(
+        _point(lat: 39.905, lng: 116.4, ts: 6),
+      ); // ~555m，保持连续采样
       final lastSplit = calculator.finishLastSplit(
         DateTime.fromMillisecondsSinceEpoch(150000),
       );
       expect(lastSplit, isNotNull);
       expect(lastSplit!.kmIndex, 1); // 第一公里（未完成）
+    });
+
+    test('excludePausedDuration 从分公里耗时中扣除暂停时间', () {
+      calculator.addPoint(_point(lat: 39.9, lng: 116.4, ts: 0));
+      calculator.addPoint(_point(lat: 39.905, lng: 116.4, ts: 6));
+
+      calculator.excludePausedDuration(const Duration(seconds: 30));
+
+      final lastSplit = calculator.finishLastSplit(
+        DateTime.fromMillisecondsSinceEpoch(150000),
+      );
+
+      expect(lastSplit, isNotNull);
+      expect(lastSplit!.endTime.difference(lastSplit.startTime).inSeconds, 120);
+    });
+
+    test('clearRealtimeWindow 避免恢复后累计暂停段跳点距离', () {
+      calculator.addPoint(_point(lat: 39.9, lng: 116.4, ts: 0));
+      calculator.addPoint(_point(lat: 39.901, lng: 116.4, ts: 3));
+      final distanceBeforePause = calculator.totalDistanceMeters;
+
+      calculator.clearRealtimeWindow();
+      final deltaAfterResume = calculator.addPoint(
+        _point(lat: 39.905, lng: 116.4, ts: 6),
+      );
+
+      expect(deltaAfterResume, 0);
+      expect(calculator.totalDistanceMeters, distanceBeforePause);
+    });
+
+    test('seedRealtimeWindow 保留恢复后的第一段移动距离', () {
+      calculator.addPoint(_point(lat: 39.9, lng: 116.4, ts: 0));
+      calculator.addPoint(_point(lat: 39.901, lng: 116.4, ts: 3));
+      final distanceBeforePause = calculator.totalDistanceMeters;
+
+      calculator.clearRealtimeWindow();
+      calculator.seedRealtimeWindow(_point(lat: 39.905, lng: 116.4, ts: 30));
+      final deltaAfterResume = calculator.addPoint(
+        _point(lat: 39.906, lng: 116.4, ts: 33),
+      );
+
+      expect(deltaAfterResume, greaterThan(100));
+      expect(
+        calculator.totalDistanceMeters,
+        closeTo(distanceBeforePause + deltaAfterResume, 0.001),
+      );
     });
 
     test('reset 清除所有状态', () {

@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:drift/drift.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:latlong2/latlong.dart';
@@ -22,8 +23,16 @@ import 'tracking_state.dart';
 /// 运动核心状态管理器
 class TrackingNotifier extends StateNotifier<TrackingState> {
   static const _autoPauseDisplacementWindow = Duration(
+    seconds: AutoPauseDetector.resumeDisplacementWindowSec,
+  );
+  static const _autoPauseConfirmWindow = Duration(
     seconds: AutoPauseDetector.pauseDelaySec,
   );
+  static const _autoResumeConfirmWindow = Duration(
+    seconds: AutoPauseDetector.resumeDisplacementWindowSec,
+  );
+  static const _cadenceFreshGrace = Duration(seconds: 3);
+  static const _cadenceStaleThreshold = Duration(seconds: 6);
 
   final LocationService _locationService;
   final StepCadenceService _stepCadenceService;
@@ -31,6 +40,7 @@ class TrackingNotifier extends StateNotifier<TrackingState> {
   final TtsService _ttsService;
   final TrackingPersistence _persistence;
   final RunFinalizer _finalizer;
+  final DateTime Function() _now;
   final PaceCalculator _paceCalculator = PaceCalculator();
   final AutoPauseDetector _autoPauseDetector = AutoPauseDetector();
   final ElevationCalculator _elevationCalculator = ElevationCalculator();
@@ -54,6 +64,8 @@ class TrackingNotifier extends StateNotifier<TrackingState> {
   int? _currentCadenceSpm;
   DateTime? _lastStepAt;
   final List<TrackPoint> _autoPauseWindow = [];
+  final List<TrackPoint> _autoPauseCandidatePoints = [];
+  final List<TrackPoint> _autoResumeCandidatePoints = [];
   int _runGeneration = 0;
   bool _isEndingRun = false;
 
@@ -77,8 +89,49 @@ class TrackingNotifier extends StateNotifier<TrackingState> {
     this._runSessionDao,
     this._ttsService,
     this._persistence,
-    this._finalizer,
-  ) : super(const TrackingState());
+    this._finalizer, {
+    DateTime Function()? now,
+  }) : _now = now ?? DateTime.now,
+       super(const TrackingState());
+
+  @visibleForTesting
+  void configureForTesting({
+    required DateTime startTime,
+    required int sessionId,
+    TrackingStatus status = TrackingStatus.running,
+    bool autoPauseEnabled = true,
+    bool cadenceSensorAvailable = false,
+    int? currentCadenceSpm,
+    DateTime? lastStepAt,
+  }) {
+    _startTime = startTime;
+    _sessionId = sessionId;
+    _autoPauseEnabled = autoPauseEnabled;
+    _ttsEnabled = false;
+    _pausedDurationSec = 0;
+    _pauseStartTime = null;
+    _cadenceSensorAvailable = cadenceSensorAvailable;
+    _currentCadenceSpm = currentCadenceSpm;
+    _lastStepAt = lastStepAt;
+    _autoPauseDetector.reset();
+    _paceCalculator.reset();
+    _elevationCalculator.reset();
+    _autoPauseWindow.clear();
+    _autoPauseCandidatePoints.clear();
+    _autoResumeCandidatePoints.clear();
+    _pointBuffer.clear();
+    _flushedPointCount = 0;
+    _orderIndex = 0;
+    state = state.copyWith(status: status);
+  }
+
+  @visibleForTesting
+  void handleGpsPointForTesting(TrackPoint point) => _onGpsPoint(point);
+
+  @visibleForTesting
+  void handleCadenceSampleForTesting(CadenceSample sample) {
+    _onCadenceSample(sample);
+  }
 
   /// 加载用户设置
   Future<void> _loadSettings() async {
@@ -124,6 +177,8 @@ class TrackingNotifier extends StateNotifier<TrackingState> {
     _currentCadenceSpm = null;
     _lastStepAt = null;
     _autoPauseWindow.clear();
+    _autoPauseCandidatePoints.clear();
+    _autoResumeCandidatePoints.clear();
 
     // 请求 GPS 权限
     final granted = await _locationService.requestPermission();
@@ -154,7 +209,7 @@ class TrackingNotifier extends StateNotifier<TrackingState> {
     await WakelockPlus.enable();
     _wakelockActive = true;
 
-    _startTime = DateTime.now();
+    _startTime = _now();
     _paceCalculator.reset();
     _autoPauseDetector.reset();
     _elevationCalculator.reset();
@@ -238,37 +293,233 @@ class TrackingNotifier extends StateNotifier<TrackingState> {
     if (_autoPauseEnabled) {
       _autoPauseWindow.add(point);
       _trimAutoPauseWindow(point.timestamp);
-      final recentMotion = _recentAutoPauseMotion();
+      final recentMotion = _recentAutoPauseMotion(
+        state.status == TrackingStatus.autoPaused
+            ? _autoResumeConfirmWindow
+            : _autoPauseConfirmWindow,
+      );
+      final cadenceSpm = _cadenceForPause(point.timestamp);
       final event = _autoPauseDetector.update(
         point.speed,
         point.timestamp,
-        cadenceSpm: _cadenceForPause(point.timestamp),
+        cadenceSpm: cadenceSpm,
+        lowMotionStartedAt: _lowMotionStartedAt(point.timestamp, cadenceSpm),
+        highMotionStartedAt: _highMotionStartedAt(point.timestamp, cadenceSpm),
         recentDisplacementMeters: recentMotion?.displacementMeters,
         recentDisplacementDuration: recentMotion?.duration,
         accuracyMeters: point.accuracy,
       );
-      if (event == AutoPauseEvent.paused) {
-        _pauseStartTime = DateTime.now();
-        state = state.copyWith(status: TrackingStatus.autoPaused);
+      if (event?.event == AutoPauseEvent.paused) {
+        _applyAutoPauseBackfill(
+          effectiveAt: event!.effectiveAt,
+          confirmedAt: point.timestamp,
+        );
+        _pauseStartTime = point.timestamp;
+        _autoPauseCandidatePoints.clear();
+        _autoResumeCandidatePoints.clear();
+        _paceCalculator.clearRealtimeWindow();
+        state = state.copyWith(
+          status: TrackingStatus.autoPaused,
+          durationSeconds: _activeDurationSecondsAt(point.timestamp),
+        );
         _announcePauseState(true);
         // 不降频：自动暂停期间仍以 3s 频率采样，确保恢复检测灵敏
         return;
-      } else if (event == AutoPauseEvent.resumed) {
+      } else if (event?.event == AutoPauseEvent.resumed) {
         if (_pauseStartTime != null) {
-          _pausedDurationSec += DateTime.now()
-              .difference(_pauseStartTime!)
-              .inSeconds;
+          final pausedDuration = event!.effectiveAt.difference(
+            _pauseStartTime!,
+          );
+          final boundedPausedDuration = pausedDuration.isNegative
+              ? Duration.zero
+              : pausedDuration;
+          _pausedDurationSec += boundedPausedDuration.inSeconds;
+          _paceCalculator.excludePausedDuration(boundedPausedDuration);
           _pauseStartTime = null;
         }
-        state = state.copyWith(status: TrackingStatus.running);
+        state = state.copyWith(
+          status: TrackingStatus.running,
+          durationSeconds: _activeDurationSecondsAt(point.timestamp),
+        );
         pauseStateChanged = true;
+        _flushAutoResumeCandidates(event!.effectiveAt);
         _announcePauseState(false);
+      } else if (_autoPauseDetector.isPausePending) {
+        _autoPauseCandidatePoints.add(point);
+        return;
+      } else if (_autoPauseDetector.isResumePending) {
+        _autoResumeCandidatePoints.add(point);
+        return;
+      } else if (_autoPauseCandidatePoints.isNotEmpty) {
+        _flushAutoPauseCandidates();
+      } else if (_autoResumeCandidatePoints.isNotEmpty) {
+        _autoResumeCandidatePoints.clear();
       }
     }
 
     // 自动暂停期间不累计距离
     if (state.status == TrackingStatus.autoPaused) return;
 
+    _recordActivePoint(point, allowTts: !pauseStateChanged);
+  }
+
+  /// 每秒计时
+  void _onTick() {
+    _refreshCadenceStaleness();
+    if (state.status != TrackingStatus.running) return;
+    if (_startTime == null) return;
+
+    final elapsed = _now().difference(_startTime!).inSeconds;
+    final activeDuration = elapsed - _pausedDurationSec;
+    if (_pauseStartTime != null) {
+      // 当前正在暂停中，不增加时间
+      return;
+    }
+
+    state = state.copyWith(durationSeconds: activeDuration);
+  }
+
+  int? _cadenceForPause(DateTime now) {
+    if (!_cadenceSensorAvailable) return null;
+    final lastStepAt = _lastStepAt;
+    if (lastStepAt == null ||
+        now.difference(lastStepAt) > _cadenceStaleThreshold) {
+      return 0;
+    }
+    if ((_currentCadenceSpm ?? 0) == 0 &&
+        now.difference(lastStepAt) <= _cadenceFreshGrace) {
+      return AutoPauseDetector.resumeCadenceThresholdSpm;
+    }
+    return _currentCadenceSpm ?? 0;
+  }
+
+  void _refreshCadenceStaleness() {
+    if (!_cadenceSensorAvailable || _currentCadenceSpm == 0) return;
+    final lastStepAt = _lastStepAt;
+    if (lastStepAt != null &&
+        _now().difference(lastStepAt) > _cadenceStaleThreshold) {
+      _currentCadenceSpm = 0;
+      state = state.copyWith(cadenceSpm: 0);
+    }
+  }
+
+  DateTime? _lowMotionStartedAt(DateTime now, int? cadenceSpm) {
+    final pendingStartedAt = _autoPauseDetector.pendingPauseStartedAt;
+    var startedAt = pendingStartedAt;
+
+    if (cadenceSpm != null &&
+        cadenceSpm < AutoPauseDetector.pauseCadenceThresholdSpm) {
+      final cadenceStartedAt = _lastStepAt?.add(_cadenceFreshGrace) ?? now;
+      if (startedAt == null || cadenceStartedAt.isBefore(startedAt)) {
+        startedAt = cadenceStartedAt;
+      }
+    }
+
+    if (startedAt != null && startedAt.isAfter(now)) return now;
+    return startedAt;
+  }
+
+  DateTime? _highMotionStartedAt(DateTime now, int? cadenceSpm) {
+    final pendingStartedAt = _autoPauseDetector.pendingResumeStartedAt;
+    var startedAt = pendingStartedAt;
+
+    if (cadenceSpm != null &&
+        cadenceSpm >= AutoPauseDetector.resumeCadenceThresholdSpm) {
+      final cadenceStartedAt = _lastStepAt ?? now;
+      if (startedAt == null || cadenceStartedAt.isBefore(startedAt)) {
+        startedAt = cadenceStartedAt;
+      }
+    }
+
+    if (startedAt != null && startedAt.isAfter(now)) return now;
+    return startedAt;
+  }
+
+  void _applyAutoPauseBackfill({
+    required DateTime effectiveAt,
+    required DateTime confirmedAt,
+  }) {
+    final backfill = confirmedAt.difference(effectiveAt);
+    if (backfill <= Duration.zero) return;
+    _pausedDurationSec += backfill.inSeconds;
+    _paceCalculator.excludePausedDuration(backfill);
+  }
+
+  void _finalizePendingAutoPauseAtEnd(DateTime endTime) {
+    if (!_autoPauseEnabled || !_autoPauseDetector.isPausePending) return;
+    final effectiveAt = _autoPauseDetector.pendingPauseStartedAt;
+    if (effectiveAt == null) return;
+    _applyAutoPauseBackfill(effectiveAt: effectiveAt, confirmedAt: endTime);
+    _autoPauseCandidatePoints.clear();
+    _autoResumeCandidatePoints.clear();
+    _paceCalculator.clearRealtimeWindow();
+    state = state.copyWith(durationSeconds: _activeDurationSecondsAt(endTime));
+  }
+
+  void _finalizePendingAutoResumeAtEnd(DateTime endTime) {
+    if (!_autoPauseEnabled || !_autoPauseDetector.isResumePending) return;
+    final effectiveAt = _autoPauseDetector.pendingResumeStartedAt;
+    if (effectiveAt == null) return;
+
+    if (_pauseStartTime != null) {
+      final pausedDuration = effectiveAt.difference(_pauseStartTime!);
+      final boundedPausedDuration = pausedDuration.isNegative
+          ? Duration.zero
+          : pausedDuration;
+      _pausedDurationSec += boundedPausedDuration.inSeconds;
+      _paceCalculator.excludePausedDuration(boundedPausedDuration);
+      _pauseStartTime = null;
+    }
+
+    state = state.copyWith(
+      status: TrackingStatus.running,
+      durationSeconds: _activeDurationSecondsAt(endTime),
+    );
+    _flushAutoResumeCandidates(effectiveAt);
+  }
+
+  int _activeDurationSecondsAt(DateTime timestamp) {
+    final startTime = _startTime;
+    if (startTime == null) return state.durationSeconds;
+    final activeDuration =
+        timestamp.difference(startTime).inSeconds - _pausedDurationSec;
+    return activeDuration < 0 ? 0 : activeDuration;
+  }
+
+  void _flushAutoPauseCandidates() {
+    final candidates = List<TrackPoint>.of(_autoPauseCandidatePoints);
+    _autoPauseCandidatePoints.clear();
+    for (final candidate in candidates) {
+      _recordActivePoint(candidate, allowTts: false);
+    }
+  }
+
+  void _flushAutoResumeCandidates(DateTime effectiveAt) {
+    final candidates = List<TrackPoint>.of(_autoResumeCandidatePoints);
+    _autoResumeCandidatePoints.clear();
+    var seededAnchor = _seedResumeAnchor(effectiveAt);
+    for (final candidate in candidates) {
+      if (!candidate.timestamp.isBefore(effectiveAt)) {
+        if (!seededAnchor) {
+          _paceCalculator.seedRealtimeWindow(candidate);
+          seededAnchor = true;
+        }
+        _recordActivePoint(candidate, allowTts: false);
+      }
+    }
+  }
+
+  bool _seedResumeAnchor(DateTime effectiveAt) {
+    for (final point in _autoPauseWindow) {
+      if (!point.timestamp.isBefore(effectiveAt)) {
+        _paceCalculator.seedRealtimeWindow(point);
+        return true;
+      }
+    }
+    return false;
+  }
+
+  void _recordActivePoint(TrackPoint point, {required bool allowTts}) {
     // 添加点到计算器
     _paceCalculator.addPoint(point);
 
@@ -297,7 +548,7 @@ class TrackingNotifier extends StateNotifier<TrackingState> {
     );
 
     // 语音播报检查（每 N km）
-    if (_ttsEnabled && _ttsIntervalKm > 0 && !pauseStateChanged) {
+    if (_ttsEnabled && _ttsIntervalKm > 0 && allowTts) {
       final currentKm = (_paceCalculator.totalDistanceMeters / 1000).floor();
       final nextAnnounceKm = _lastAnnouncedKm + _ttsIntervalKm;
       if (currentKm >= nextAnnounceKm) {
@@ -316,54 +567,22 @@ class TrackingNotifier extends StateNotifier<TrackingState> {
     }
   }
 
-  /// 每秒计时
-  void _onTick() {
-    _refreshCadenceStaleness();
-    if (state.status != TrackingStatus.running) return;
-    if (_startTime == null) return;
-
-    final elapsed = DateTime.now().difference(_startTime!).inSeconds;
-    final activeDuration = elapsed - _pausedDurationSec;
-    if (_pauseStartTime != null) {
-      // 当前正在暂停中，不增加时间
-      return;
-    }
-
-    state = state.copyWith(durationSeconds: activeDuration);
-  }
-
-  int? _cadenceForPause(DateTime now) {
-    if (!_cadenceSensorAvailable) return null;
-    final lastStepAt = _lastStepAt;
-    if (lastStepAt == null || now.difference(lastStepAt).inSeconds > 6) {
-      return 0;
-    }
-    if ((_currentCadenceSpm ?? 0) == 0 &&
-        now.difference(lastStepAt).inSeconds <= 3) {
-      return AutoPauseDetector.resumeCadenceThresholdSpm;
-    }
-    return _currentCadenceSpm ?? 0;
-  }
-
-  void _refreshCadenceStaleness() {
-    if (!_cadenceSensorAvailable || _currentCadenceSpm == 0) return;
-    final lastStepAt = _lastStepAt;
-    if (lastStepAt != null &&
-        DateTime.now().difference(lastStepAt).inSeconds > 6) {
-      _currentCadenceSpm = 0;
-      state = state.copyWith(cadenceSpm: 0);
-    }
-  }
-
   void _trimAutoPauseWindow(DateTime now) {
     final cutoff = now.subtract(_autoPauseDisplacementWindow);
     _autoPauseWindow.removeWhere((point) => point.timestamp.isBefore(cutoff));
   }
 
-  ({double displacementMeters, Duration duration})? _recentAutoPauseMotion() {
+  ({double displacementMeters, Duration duration})? _recentAutoPauseMotion(
+    Duration window,
+  ) {
     if (_autoPauseWindow.length < 2) return null;
-    final first = _autoPauseWindow.first;
     final last = _autoPauseWindow.last;
+    final cutoff = last.timestamp.subtract(window);
+    final first = _autoPauseWindow.firstWhere(
+      (point) => !point.timestamp.isBefore(cutoff),
+      orElse: () => last,
+    );
+    if (identical(first, last)) return null;
     return (
       displacementMeters: Distance().as(
         LengthUnit.Meter,
@@ -377,7 +596,14 @@ class TrackingNotifier extends StateNotifier<TrackingState> {
   /// 手动暂停
   void pauseRun() {
     if (state.status != TrackingStatus.running) return;
-    _pauseStartTime = DateTime.now();
+    if (_autoPauseCandidatePoints.isNotEmpty) {
+      _flushAutoPauseCandidates();
+    }
+    _autoPauseDetector.reset();
+    _autoPauseWindow.clear();
+    _autoResumeCandidatePoints.clear();
+    _paceCalculator.clearRealtimeWindow();
+    _pauseStartTime = _now();
     state = state.copyWith(status: TrackingStatus.paused);
     _locationService.updateInterval(isPaused: true);
     _announcePauseState(true);
@@ -391,12 +617,15 @@ class TrackingNotifier extends StateNotifier<TrackingState> {
     }
 
     if (_pauseStartTime != null) {
-      _pausedDurationSec += DateTime.now()
-          .difference(_pauseStartTime!)
-          .inSeconds;
+      final pausedDuration = _now().difference(_pauseStartTime!);
+      _pausedDurationSec += pausedDuration.inSeconds;
+      _paceCalculator.excludePausedDuration(pausedDuration);
       _pauseStartTime = null;
     }
     _autoPauseDetector.reset();
+    _autoPauseWindow.clear();
+    _autoPauseCandidatePoints.clear();
+    _autoResumeCandidatePoints.clear();
     state = state.copyWith(status: TrackingStatus.running);
     _locationService.updateInterval(isPaused: false);
     _announcePauseState(false);
@@ -424,10 +653,13 @@ class TrackingNotifier extends StateNotifier<TrackingState> {
       _wakelockActive = false;
     }
 
-    final endTime = DateTime.now();
+    final endTime = _now();
+    _finalizePendingAutoPauseAtEnd(endTime);
+    _finalizePendingAutoResumeAtEnd(endTime);
+    final paceEndTime = _pauseStartTime ?? endTime;
 
     // 完成最后一个不完整公里
-    _paceCalculator.finishLastSplit(endTime);
+    _paceCalculator.finishLastSplit(paceEndTime);
 
     // 完成海拔累计（把最后一段待确认的爬升算上）
     _elevationCalculator.finish();

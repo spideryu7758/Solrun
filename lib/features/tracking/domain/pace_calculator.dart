@@ -65,8 +65,10 @@ class PaceCalculator {
       }
 
       deltaMeters = _haversineDistance(
-        prev.latitude, prev.longitude,
-        point.latitude, point.longitude,
+        prev.latitude,
+        prev.longitude,
+        point.latitude,
+        point.longitude,
       );
       _totalDistanceMeters += deltaMeters;
       _currentKmDistance += deltaMeters;
@@ -78,8 +80,11 @@ class PaceCalculator {
     _windowPoints.addLast(point);
 
     // 清理超出窗口的旧点
-    final cutoff = point.timestamp.subtract(const Duration(seconds: windowSeconds));
-    while (_windowPoints.isNotEmpty && _windowPoints.first.timestamp.isBefore(cutoff)) {
+    final cutoff = point.timestamp.subtract(
+      const Duration(seconds: windowSeconds),
+    );
+    while (_windowPoints.isNotEmpty &&
+        _windowPoints.first.timestamp.isBefore(cutoff)) {
       _windowPoints.removeFirst();
     }
 
@@ -91,12 +96,14 @@ class PaceCalculator {
       final kmEndTime = point.timestamp;
       final durationSec = kmEndTime.difference(_currentKmStartTime!).inSeconds;
       // 配速 = 该公里用时（秒）
-      _splits.add(SplitPaceData(
-        kmIndex: _completedKms,
-        paceSecPerKm: durationSec > 0 ? durationSec : 1,
-        startTime: _currentKmStartTime!,
-        endTime: kmEndTime,
-      ));
+      _splits.add(
+        SplitPaceData(
+          kmIndex: _completedKms,
+          paceSecPerKm: durationSec > 0 ? durationSec : 1,
+          startTime: _currentKmStartTime!,
+          endTime: kmEndTime,
+        ),
+      );
       _currentKmStartTime = kmEndTime;
       _currentKmDistance = overDistance;
     }
@@ -120,8 +127,10 @@ class PaceCalculator {
     for (final p in _windowPoints) {
       if (prev != null) {
         windowDistance += _haversineDistance(
-          prev.latitude, prev.longitude,
-          p.latitude, p.longitude,
+          prev.latitude,
+          prev.longitude,
+          p.latitude,
+          p.longitude,
         );
       }
       prev = p;
@@ -155,6 +164,27 @@ class PaceCalculator {
     return null;
   }
 
+  /// 排除暂停耗时，避免分公里配速把暂停时间算进去。
+  void excludePausedDuration(Duration duration) {
+    if (duration <= Duration.zero || _currentKmStartTime == null) return;
+    _currentKmStartTime = _currentKmStartTime!.add(duration);
+  }
+
+  /// 暂停开始时丢弃实时窗口，避免恢复后把停顿段作为移动距离累计。
+  void clearRealtimeWindow() {
+    _windowPoints.clear();
+  }
+
+  /// 恢复时用确认后的第一个真实移动点作为距离锚点。
+  ///
+  /// 锚点本身不产生距离，但下一个点会从该锚点开始累计，避免从暂停前
+  /// 的旧点跨越整段暂停时间，同时保留恢复后的第一段真实移动距离。
+  void seedRealtimeWindow(TrackPoint point) {
+    _windowPoints
+      ..clear()
+      ..addLast(point);
+  }
+
   /// 重置计算器
   void reset() {
     _windowPoints.clear();
@@ -167,15 +197,20 @@ class PaceCalculator {
 
   /// Haversine 公式计算两点间距离（米）
   static double _haversineDistance(
-    double lat1, double lon1,
-    double lat2, double lon2,
+    double lat1,
+    double lon1,
+    double lat2,
+    double lon2,
   ) {
     const earthRadius = 6371000.0; // 地球半径（米）
     final dLat = _toRadians(lat2 - lat1);
     final dLon = _toRadians(lon2 - lon1);
-    final a = sin(dLat / 2) * sin(dLat / 2) +
-        cos(_toRadians(lat1)) * cos(_toRadians(lat2)) *
-        sin(dLon / 2) * sin(dLon / 2);
+    final a =
+        sin(dLat / 2) * sin(dLat / 2) +
+        cos(_toRadians(lat1)) *
+            cos(_toRadians(lat2)) *
+            sin(dLon / 2) *
+            sin(dLon / 2);
     final c = 2 * atan2(sqrt(a), sqrt(1 - a));
     return earthRadius * c;
   }

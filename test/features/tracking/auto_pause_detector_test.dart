@@ -25,18 +25,19 @@ void main() {
 
     test('速度低于阈值持续 3 秒触发暂停', () {
       final t0 = DateTime(2026, 1, 1, 0, 0, 0);
-      AutoPauseEvent? lastEvent;
+      AutoPauseUpdate? lastEvent;
       for (int i = 0; i <= 3; i++) {
         lastEvent = detector.update(0.1, t0.add(Duration(seconds: i)));
       }
-      expect(lastEvent, AutoPauseEvent.paused);
+      expect(lastEvent?.event, AutoPauseEvent.paused);
+      expect(lastEvent?.effectiveAt, t0);
       expect(detector.isPaused, true);
     });
 
     test('速度恰好等于 1.0 km/h (0.278 m/s) 不触发', () {
       final t0 = DateTime(2026, 1, 1, 0, 0, 0);
       // 0.278 m/s = 1.0 km/h，不低于阈值（< 0.278 才触发）
-      AutoPauseEvent? lastEvent;
+      AutoPauseUpdate? lastEvent;
       for (int i = 0; i <= 4; i++) {
         lastEvent = detector.update(0.278, t0.add(Duration(seconds: i)));
       }
@@ -47,17 +48,49 @@ void main() {
 
     test('速度刚低于 1.0 km/h (0.277 m/s) 持续 3 秒触发', () {
       final t0 = DateTime(2026, 1, 1, 0, 0, 0);
-      AutoPauseEvent? lastEvent;
+      AutoPauseUpdate? lastEvent;
       for (int i = 0; i <= 3; i++) {
         lastEvent = detector.update(0.277, t0.add(Duration(seconds: i)));
       }
-      expect(lastEvent, AutoPauseEvent.paused);
+      expect(lastEvent?.event, AutoPauseEvent.paused);
+      expect(lastEvent?.effectiveAt, t0);
       expect(detector.isPaused, true);
+    });
+
+    test('暂停事件回溯到外部推断的低运动起点', () {
+      final t0 = DateTime(2026, 1, 1, 0, 0, 0);
+      final lowMotionStartedAt = t0.add(const Duration(seconds: 2));
+
+      final event = detector.update(
+        0.35,
+        t0.add(const Duration(seconds: 6)),
+        cadenceSpm: 0,
+        lowMotionStartedAt: lowMotionStartedAt,
+      );
+
+      expect(event?.event, AutoPauseEvent.paused);
+      expect(event?.effectiveAt, lowMotionStartedAt);
+      expect(detector.isPaused, true);
+    });
+
+    test('低运动候选期可观测，并在明确移动后清除', () {
+      final t0 = DateTime(2026, 1, 1, 0, 0, 0);
+
+      final pending = detector.update(0.1, t0);
+
+      expect(pending, isNull);
+      expect(detector.isPausePending, true);
+      expect(detector.pendingPauseStartedAt, t0);
+
+      detector.update(0.8, t0.add(const Duration(seconds: 1)));
+
+      expect(detector.isPausePending, false);
+      expect(detector.pendingPauseStartedAt, isNull);
     });
   });
 
   group('AutoPauseDetector 恢复', () {
-    test('暂停后速度超过 1.5 km/h 恢复', () {
+    test('暂停后速度持续超过恢复阈值才恢复', () {
       final t0 = DateTime(2026, 1, 1, 0, 0, 0);
       // 先触发暂停
       for (int i = 0; i <= 3; i++) {
@@ -65,33 +98,63 @@ void main() {
       }
       expect(detector.isPaused, true);
 
-      // 速度恢复到 1.5 km/h 以上 (0.42 m/s)
-      final event = detector.update(0.5, t0.add(const Duration(seconds: 8)));
-      expect(event, AutoPauseEvent.resumed);
+      final pending = detector.update(0.9, t0.add(const Duration(seconds: 8)));
+      expect(pending, isNull);
+      expect(detector.isPaused, true);
+      expect(detector.isResumePending, true);
+      expect(
+        detector.pendingResumeStartedAt,
+        t0.add(const Duration(seconds: 8)),
+      );
+
+      final event = detector.update(0.9, t0.add(const Duration(seconds: 11)));
+      expect(event?.event, AutoPauseEvent.resumed);
+      expect(event?.effectiveAt, t0.add(const Duration(seconds: 8)));
       expect(detector.isPaused, false);
     });
 
-    test('暂停后速度恰好 0.417 m/s (1.5 km/h) 不恢复', () {
+    test('暂停后速度恰好恢复阈值不恢复', () {
       final t0 = DateTime(2026, 1, 1, 0, 0, 0);
       for (int i = 0; i <= 3; i++) {
         detector.update(0.1, t0.add(Duration(seconds: i)));
       }
       expect(detector.isPaused, true);
 
-      // 0.417 m/s = 1.5 km/h，不满足 > 条件
-      final event = detector.update(0.417, t0.add(const Duration(seconds: 8)));
+      final event = detector.update(
+        AutoPauseDetector.resumeSpeedThreshold,
+        t0.add(const Duration(seconds: 8)),
+      );
       expect(event, isNull);
       expect(detector.isPaused, true);
     });
 
-    test('暂停后速度刚超过 1.5 km/h (0.418 m/s) 恢复', () {
+    test('恢复候选被低速打断后不会恢复', () {
       final t0 = DateTime(2026, 1, 1, 0, 0, 0);
       for (int i = 0; i <= 3; i++) {
         detector.update(0.1, t0.add(Duration(seconds: i)));
       }
 
-      final event = detector.update(0.418, t0.add(const Duration(seconds: 8)));
-      expect(event, AutoPauseEvent.resumed);
+      detector.update(0.9, t0.add(const Duration(seconds: 8)));
+      final event = detector.update(0.1, t0.add(const Duration(seconds: 11)));
+      expect(event, isNull);
+      expect(detector.isPaused, true);
+      expect(detector.isResumePending, false);
+    });
+
+    test('外部恢复起点已覆盖确认窗口时可立即恢复', () {
+      final t0 = DateTime(2026, 1, 1, 0, 0, 0);
+      for (int i = 0; i <= 3; i++) {
+        detector.update(0.1, t0.add(Duration(seconds: i)));
+      }
+
+      final event = detector.update(
+        0.9,
+        t0.add(const Duration(seconds: 10)),
+        highMotionStartedAt: t0.add(const Duration(seconds: 6)),
+      );
+
+      expect(event?.event, AutoPauseEvent.resumed);
+      expect(event?.effectiveAt, t0.add(const Duration(seconds: 6)));
       expect(detector.isPaused, false);
     });
   });
@@ -99,7 +162,7 @@ void main() {
   group('AutoPauseDetector 步频辅助', () {
     test('有步频数据时停步 3 秒触发暂停，即使 GPS 轻微漂移', () {
       final t0 = DateTime(2026, 1, 1, 0, 0, 0);
-      AutoPauseEvent? lastEvent;
+      AutoPauseUpdate? lastEvent;
       for (int i = 0; i <= 3; i++) {
         lastEvent = detector.update(
           0.35,
@@ -107,7 +170,8 @@ void main() {
           cadenceSpm: 0,
         );
       }
-      expect(lastEvent, AutoPauseEvent.paused);
+      expect(lastEvent?.event, AutoPauseEvent.paused);
+      expect(lastEvent?.effectiveAt, t0);
       expect(detector.isPaused, true);
     });
 
@@ -122,7 +186,7 @@ void main() {
     test('低步频时 GPS 明确移动会否决暂停', () {
       final t0 = DateTime(2026, 1, 1, 0, 0, 0);
       for (int i = 0; i <= 3; i++) {
-        detector.update(0.8, t0.add(Duration(seconds: i)), cadenceSpm: 0);
+        detector.update(0.9, t0.add(Duration(seconds: i)), cadenceSpm: 0);
       }
       expect(detector.isPaused, false);
     });
@@ -142,24 +206,40 @@ void main() {
       expect(driftEvent, isNull);
       expect(detector.isPaused, true);
 
-      final gpsEvent = detector.update(
-        0.8,
+      final gpsPending = detector.update(
+        0.9,
         t0.add(const Duration(seconds: 10)),
         cadenceSpm: 0,
       );
-      expect(gpsEvent, AutoPauseEvent.resumed);
+      expect(gpsPending, isNull);
+      expect(detector.isPaused, true);
+
+      final gpsEvent = detector.update(
+        0.9,
+        t0.add(const Duration(seconds: 13)),
+        cadenceSpm: 0,
+      );
+      expect(gpsEvent?.event, AutoPauseEvent.resumed);
       expect(detector.isPaused, false);
 
       detector.reset();
       for (int i = 0; i <= 3; i++) {
         detector.update(0.35, t0.add(Duration(seconds: i)), cadenceSpm: 0);
       }
-      final stepEvent = detector.update(
+      final stepPending = detector.update(
         0.1,
         t0.add(const Duration(seconds: 12)),
-        cadenceSpm: 30,
+        cadenceSpm: 50,
       );
-      expect(stepEvent, AutoPauseEvent.resumed);
+      expect(stepPending, isNull);
+      expect(detector.isPaused, true);
+
+      final stepEvent = detector.update(
+        0.1,
+        t0.add(const Duration(seconds: 15)),
+        cadenceSpm: 50,
+      );
+      expect(stepEvent?.event, AutoPauseEvent.resumed);
       expect(detector.isPaused, false);
     });
   });
@@ -167,7 +247,7 @@ void main() {
   group('AutoPauseDetector GPS 位移辅助', () {
     test('无步频时 GPS 速度漂移但近期位移很小也会暂停', () {
       final t0 = DateTime(2026, 1, 1, 0, 0, 0);
-      AutoPauseEvent? lastEvent;
+      AutoPauseUpdate? lastEvent;
       for (int i = 0; i <= 3; i++) {
         lastEvent = detector.update(
           0.5,
@@ -176,7 +256,7 @@ void main() {
           accuracyMeters: 8.0,
         );
       }
-      expect(lastEvent, AutoPauseEvent.paused);
+      expect(lastEvent?.event, AutoPauseEvent.paused);
       expect(detector.isPaused, true);
     });
 
@@ -189,7 +269,8 @@ void main() {
         recentDisplacementDuration: const Duration(seconds: 3),
         accuracyMeters: 8.0,
       );
-      expect(event, AutoPauseEvent.paused);
+      expect(event?.event, AutoPauseEvent.paused);
+      expect(event?.effectiveAt, t0);
       expect(detector.isPaused, true);
     });
 
@@ -218,13 +299,24 @@ void main() {
       }
       expect(detector.isPaused, true);
 
-      final event = detector.update(
+      final pending = detector.update(
         0.1,
         t0.add(const Duration(seconds: 8)),
         recentDisplacementMeters: 10.0,
+        recentDisplacementDuration: const Duration(seconds: 6),
         accuracyMeters: 8.0,
       );
-      expect(event, AutoPauseEvent.resumed);
+      expect(pending, isNull);
+      expect(detector.isPaused, true);
+
+      final event = detector.update(
+        0.1,
+        t0.add(const Duration(seconds: 11)),
+        recentDisplacementMeters: 10.0,
+        recentDisplacementDuration: const Duration(seconds: 6),
+        accuracyMeters: 8.0,
+      );
+      expect(event?.event, AutoPauseEvent.resumed);
       expect(detector.isPaused, false);
     });
   });
